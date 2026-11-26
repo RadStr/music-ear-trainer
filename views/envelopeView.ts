@@ -354,7 +354,7 @@ export function createEnvelopeView(): EnvelopeView {
   const attackControl: EnvelopeControl = addControl(
     "envelope-attack",
     "Attack (seconds)",
-    "0.05",
+    "0.2",
     "5",
   );
   const decayControl: EnvelopeControl = addControl(
@@ -372,7 +372,7 @@ export function createEnvelopeView(): EnvelopeView {
   const releaseControl: EnvelopeControl = addControl(
     "envelope-release",
     "Release (seconds)",
-    "0",
+    "0.2",
     "5",
   );
 

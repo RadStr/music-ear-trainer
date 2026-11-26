@@ -6,10 +6,10 @@ export interface Envelope {
 }
 
 export const DEFAULT_ENVELOPE: Envelope = {
-  attack: 0.05,
+  attack: 0.2,
   decay: 0.1,
   sustain: 0.7,
-  release: 0,
+  release: 0.2,
 };
 
 export type PlayMethod = (

@@ -11,10 +11,10 @@
 (() => {
   // audio/types.ts
   var DEFAULT_ENVELOPE = {
-    attack: 0.05,
+    attack: 0.2,
     decay: 0.1,
     sustain: 0.7,
-    release: 0
+    release: 0.2
   };
 
   // audio/play.ts
@@ -3077,7 +3077,7 @@
     const attackControl = addControl(
       "envelope-attack",
       "Attack (seconds)",
-      "0.05",
+      "0.2",
       "5"
     );
     const decayControl = addControl(
@@ -3095,7 +3095,7 @@
     const releaseControl = addControl(
       "envelope-release",
       "Release (seconds)",
-      "0",
+      "0.2",
       "5"
     );
     toggleButton.addEventListener("click", (_event) => {
