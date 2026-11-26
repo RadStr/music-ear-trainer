@@ -1,0 +1,3200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning by Ear</title>
+  </head>
+  <body>
+    <script>
+"use strict";
+(() => {
+  // audio/types.ts
+  var DEFAULT_ENVELOPE = {
+    attack: 0.05,
+    decay: 0.1,
+    sustain: 0.7,
+    release: 0
+  };
+
+  // audio/play.ts
+  var audioContext;
+  var masterVolume = 0.7;
+  var activeVolumeGains = /* @__PURE__ */ new Set();
+  function prepareAudioContext() {
+    if (!audioContext || audioContext.state === "closed") {
+      audioContext = new AudioContext();
+    }
+    if (audioContext.state === "suspended") {
+      void audioContext.resume().catch((error) => {
+        console.error("Unable to resume audio playback.", error);
+      });
+    }
+    return audioContext;
+  }
+  function setMasterVolume(volume) {
+    if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
+      throw new RangeError("Volume must be between 0 and 1.");
+    }
+    masterVolume = volume;
+    if (!audioContext || audioContext.state === "closed") {
+      return;
+    }
+    const now = audioContext.currentTime;
+    for (const volumeGain of activeVolumeGains) {
+      volumeGain.gain.cancelScheduledValues(now);
+      volumeGain.gain.setTargetAtTime(volume, now, 0.02);
+    }
+  }
+  function envelopeLevelAtTime(envelope, elapsedSeconds, sustainLevel) {
+    const initialLevel = 1e-4;
+    if (envelope.attack > 0 && elapsedSeconds < envelope.attack) {
+      const attackProgress = elapsedSeconds / envelope.attack;
+      return initialLevel + (1 - initialLevel) * attackProgress;
+    }
+    const decayElapsed = elapsedSeconds - envelope.attack;
+    if (envelope.decay > 0 && decayElapsed < envelope.decay) {
+      const decayProgress = decayElapsed / envelope.decay;
+      return 1 + (sustainLevel - 1) * decayProgress;
+    }
+    return sustainLevel;
+  }
+  function playAudio(playMethod, frequency, envelope) {
+    if (!Number.isFinite(frequency) || frequency <= 0) {
+      throw new RangeError("Frequency must be a positive finite number.");
+    }
+    if (!Number.isFinite(envelope.attack) || envelope.attack < 0 || !Number.isFinite(envelope.decay) || envelope.decay < 0 || !Number.isFinite(envelope.sustain) || envelope.sustain < 0 || envelope.sustain > 1 || !Number.isFinite(envelope.release) || envelope.release < 0) {
+      throw new RangeError("Envelope times must be non-negative and sustain must be between 0 and 1.");
+    }
+    const context = prepareAudioContext();
+    const now = context.currentTime;
+    const source = playMethod(context, frequency);
+    const gain = context.createGain();
+    const volumeGain = context.createGain();
+    const gainParameter = gain.gain;
+    const sustainLevel = Math.max(envelope.sustain, 1e-4);
+    source.connect(gain);
+    gain.connect(volumeGain);
+    volumeGain.connect(context.destination);
+    volumeGain.gain.setValueAtTime(masterVolume, now);
+    activeVolumeGains.add(volumeGain);
+    gainParameter.setValueAtTime(1e-4, now);
+    if (envelope.attack === 0) {
+      gainParameter.setValueAtTime(1, now);
+    } else {
+      gainParameter.linearRampToValueAtTime(1, now + envelope.attack);
+    }
+    const decayEnd = now + envelope.attack + envelope.decay;
+    if (envelope.decay === 0) {
+      gainParameter.setValueAtTime(sustainLevel, decayEnd);
+    } else {
+      gainParameter.linearRampToValueAtTime(sustainLevel, decayEnd);
+    }
+    source.addEventListener(
+      "ended",
+      () => {
+        source.disconnect();
+        gain.disconnect();
+        volumeGain.disconnect();
+        activeVolumeGains.delete(volumeGain);
+      },
+      { once: true }
+    );
+    source.start(now);
+    let released = false;
+    return {
+      ready: Promise.resolve(),
+      release: () => {
+        if (released) {
+          return;
+        }
+        released = true;
+        const releaseStart = context.currentTime;
+        if (envelope.release === 0) {
+          gain.disconnect();
+          source.stop();
+        } else {
+          const releaseEnd = releaseStart + envelope.release;
+          const elapsedSeconds = Math.max(0, releaseStart - now);
+          const currentLevel = envelopeLevelAtTime(
+            envelope,
+            elapsedSeconds,
+            sustainLevel
+          );
+          gainParameter.cancelScheduledValues(releaseStart);
+          gainParameter.setValueAtTime(currentLevel, releaseStart);
+          gainParameter.exponentialRampToValueAtTime(1e-4, releaseEnd);
+          gainParameter.setValueAtTime(0, releaseEnd);
+          source.stop(releaseEnd);
+        }
+      }
+    };
+  }
+
+  // audio/playSawtooth.ts
+  var playSawtooth = (context, frequency) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    return oscillator;
+  };
+
+  // audio/playSine.ts
+  var playSine = (context, frequency) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    return oscillator;
+  };
+
+  // audio/playSquare.ts
+  var playSquare = (context, frequency) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    return oscillator;
+  };
+
+  // keyboard.ts
+  var WHITE_PITCH_CLASSES = /* @__PURE__ */ new Set([0, 2, 4, 5, 7, 9, 11]);
+  var NOTE_NAMES = ["C", "C\u266F", "D", "D\u266F", "E", "F", "F\u266F", "G", "G\u266F", "A", "A\u266F", "B"];
+  function midiNoteName(midiNote) {
+    if (!Number.isInteger(midiNote) || midiNote < 0) {
+      throw new RangeError("The MIDI note must be a non-negative integer.");
+    }
+    const noteNameBase = NOTE_NAMES[midiNote % 12];
+    if (noteNameBase === void 0) {
+      throw new RangeError(`Unsupported pitch class: ${midiNote % 12}`);
+    }
+    return `${noteNameBase}${Math.floor(midiNote / 12) - 1}`;
+  }
+  var KEYBOARD_EVENT_CONTROLLERS = /* @__PURE__ */ new WeakMap();
+  function renderKeyboard(container, keyCount, callbacks, firstMidiNote = 21) {
+    if (!Number.isInteger(keyCount) || keyCount < 1) {
+      throw new RangeError("The keyboard must contain at least one key.");
+    }
+    if (!Number.isInteger(firstMidiNote) || firstMidiNote < 0) {
+      throw new RangeError("The first MIDI note must be a non-negative integer.");
+    }
+    const midiNotes = Array.from(
+      { length: keyCount },
+      (_, index) => firstMidiNote + index
+    );
+    const whiteKeyCount = midiNotes.filter(
+      (note) => WHITE_PITCH_CLASSES.has(note % 12)
+    ).length;
+    const layoutWhiteKeyCount = Math.max(whiteKeyCount, 1);
+    const whiteKeyWidth = 100 / layoutWhiteKeyCount;
+    const blackKeyWidth = whiteKeyWidth * 0.62;
+    const styleId = "piano-keyboard-styles";
+    if (!document.getElementById(styleId)) {
+      const styles = document.createElement("style");
+      styles.id = styleId;
+      styles.textContent = `
+      .piano-keyboard {
+        height: 190px;
+        position: relative;
+      }
+      .piano-key {
+        align-items: flex-end;
+        border: 1px solid #252525;
+        border-radius: 0 0 4px 4px;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        overflow: hidden;
+        padding: 0 1px 7px;
+        position: absolute;
+        top: 0;
+        white-space: nowrap;
+      }
+      .piano-key:focus-visible {
+        outline: 3px solid #2878d0;
+        outline-offset: -3px;
+        z-index: 3;
+      }
+      .piano-key--white {
+        background: #fff;
+        color: #202124;
+        height: 100%;
+        z-index: 1;
+      }
+      .piano-key--black {
+        background: #202124;
+        color: #fff;
+        font-size: 0.75rem;
+        height: 62%;
+        z-index: 2;
+      }
+      .piano-key--black:focus-visible {
+        z-index: 4;
+      }
+      .piano-key--pressed {
+        background: #e53935;
+        color: #fff;
+      }
+    `;
+      document.head.append(styles);
+    }
+    const viewport = document.createElement("div");
+    KEYBOARD_EVENT_CONTROLLERS.get(container)?.abort();
+    const eventController = new AbortController();
+    KEYBOARD_EVENT_CONTROLLERS.set(container, eventController);
+    viewport.className = "keyboard-viewport";
+    const keyboard = document.createElement("div");
+    keyboard.className = "piano-keyboard";
+    keyboard.setAttribute("role", "group");
+    keyboard.setAttribute("aria-label", "Musical keyboard");
+    keyboard.style.width = `max(100%, ${layoutWhiteKeyCount * 42}px)`;
+    const pressedKeys = /* @__PURE__ */ new Map();
+    const releasePressedKeys = () => {
+      for (const [pressedKey, midiNote] of pressedKeys) {
+        pressedKey.classList.remove("piano-key--pressed");
+        callbacks.onRelease(midiNote);
+      }
+      pressedKeys.clear();
+    };
+    document.addEventListener("mouseup", releasePressedKeys, {
+      signal: eventController.signal
+    });
+    window.addEventListener("blur", releasePressedKeys, {
+      signal: eventController.signal
+    });
+    let whiteKeyIndex = 0;
+    for (const midiNote of midiNotes) {
+      const pitchClass = midiNote % 12;
+      const isWhiteKey = WHITE_PITCH_CLASSES.has(pitchClass);
+      const noteName = midiNoteName(midiNote);
+      const key = document.createElement("button");
+      key.type = "button";
+      key.className = `piano-key ${isWhiteKey ? "piano-key--white" : "piano-key--black"}`;
+      key.textContent = noteName;
+      key.setAttribute("aria-label", noteName);
+      if (isWhiteKey) {
+        key.style.left = `${whiteKeyIndex * whiteKeyWidth}%`;
+        key.style.width = `${whiteKeyWidth}%`;
+        whiteKeyIndex += 1;
+      } else {
+        key.style.left = `${Math.max(0, whiteKeyIndex * whiteKeyWidth - blackKeyWidth / 2)}%`;
+        key.style.width = `${blackKeyWidth}%`;
+      }
+      key.addEventListener("mousedown", (event) => {
+        if (event.button !== 0 || pressedKeys.has(key)) {
+          return;
+        }
+        event.preventDefault();
+        pressedKeys.set(key, midiNote);
+        key.classList.add("piano-key--pressed");
+        callbacks.onPress(midiNote);
+      });
+      key.addEventListener("mouseenter", (_event) => {
+        if (_event.buttons === 1) {
+          const pressedEntry = Array.from(pressedKeys.entries()).find(
+            ([_pressedKey]) => _pressedKey !== key
+          );
+          if (pressedEntry) {
+            const [pressedKey, pressedMidiNote] = pressedEntry;
+            pressedKeys.delete(pressedKey);
+            pressedKey.classList.remove("piano-key--pressed");
+            callbacks.onPress(midiNote);
+            pressedKeys.set(key, midiNote);
+            key.classList.add("piano-key--pressed");
+            callbacks.onRelease(pressedMidiNote);
+            callbacks.onHover(midiNote, noteName);
+            return;
+          }
+        }
+        callbacks.onHover(midiNote, noteName);
+      });
+      key.addEventListener("mouseleave", (_event) => {
+        if (pressedKeys.size === 0) {
+          callbacks.onLeave();
+        }
+      });
+      keyboard.append(key);
+    }
+    viewport.append(keyboard);
+    container.replaceChildren(viewport);
+  }
+
+  // audio/sampleSource.ts
+  var SampleSource = class {
+    /**
+     * Creates a sample source backed by a MIDI-aware resolver.
+     * @param resolveSample Resolves the best sample definition for a MIDI note.
+     */
+    constructor(resolveSample) {
+      this.buffers = /* @__PURE__ */ new Map();
+      this.resolutions = /* @__PURE__ */ new Map();
+      this.resolveSample = resolveSample;
+    }
+    /**
+     * Resolves, decodes, and caches a playable method for a MIDI note.
+     * @param midiNote The MIDI note that should be played.
+     * @param context The audio context used to decode and create the sample buffer.
+     * @returns A method that creates a buffer source configured for pitch and playback rate.
+     */
+    async getPlayMethod(midiNote, context) {
+      let samplePromise = this.resolutions.get(midiNote);
+      if (!samplePromise) {
+        samplePromise = this.resolveSample(midiNote);
+        this.resolutions.set(midiNote, samplePromise);
+        void samplePromise.catch(() => {
+          this.resolutions.delete(midiNote);
+        });
+      }
+      const sample = await samplePromise;
+      let bufferPromise = this.buffers.get(sample.url);
+      if (!bufferPromise) {
+        bufferPromise = this.loadBuffer(sample, context);
+        this.buffers.set(sample.url, bufferPromise);
+        void bufferPromise.catch(() => {
+          this.buffers.delete(sample.url);
+        });
+      }
+      const buffer = await bufferPromise;
+      const playbackRate = 2 ** ((midiNote - sample.rootMidiNote) / 12);
+      return (audioContext2) => {
+        const source = audioContext2.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.setValueAtTime(playbackRate, audioContext2.currentTime);
+        return source;
+      };
+    }
+    /**
+     * Loads and decodes a sample definition.
+     * @param sample The sample URL or embedded audio data to load.
+     * @param context The audio context used for decoding.
+     * @returns The decoded audio buffer.
+     */
+    async loadBuffer(sample, context) {
+      let audioData;
+      if (sample.audioData) {
+        audioData = sample.audioData;
+      } else {
+        const response = await fetch(sample.url);
+        if (!response.ok) {
+          throw new Error(`Unable to load audio sample (${response.status}): ${sample.url}`);
+        }
+        audioData = await response.arrayBuffer();
+      }
+      return context.decodeAudioData(audioData.slice(0));
+    }
+  };
+  function normalizeSampleDirectoryUrl(input) {
+    let url;
+    try {
+      url = new URL(input.trim());
+    } catch {
+      throw new Error("Enter a valid sample directory URL.");
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error("Sample URLs must use HTTP or HTTPS.");
+    }
+    if (url.username || url.password) {
+      throw new Error("Sample directory URLs must not contain credentials.");
+    }
+    if (url.hostname === "github.com") {
+      const match = url.pathname.match(
+        /^\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.*))?\/?$/
+      );
+      if (!match) {
+        throw new Error("Use a GitHub directory URL in the form /owner/repository/tree/branch/path.");
+      }
+      const owner = match[1];
+      const repository = match[2];
+      const branch = match[3];
+      const directory = match[4] ?? "";
+      if (!owner || !repository || !branch) {
+        throw new Error("The GitHub directory URL is incomplete.");
+      }
+      url = new URL(
+        `https://raw.githubusercontent.com/${owner}/${repository}/${branch}/${directory}`
+      );
+    }
+    url.search = "";
+    url.hash = "";
+    if (!url.pathname.endsWith("/")) {
+      url.pathname += "/";
+    }
+    return url.href;
+  }
+  var CUSTOM_SAMPLE_EXTENSIONS = [
+    "wav",
+    "ogg",
+    "oga",
+    "mp3",
+    "m4a",
+    "mp4",
+    "aac",
+    "opus",
+    "webm",
+    "flac",
+    "aiff",
+    "aif",
+    "caf",
+    "3gp"
+  ];
+  function createCustomSampleSource(directoryUrl) {
+    return new SampleSource(async (midiNote) => {
+      const sampleNumber = midiNote - 20;
+      if (!Number.isInteger(sampleNumber) || sampleNumber < 1 || sampleNumber > 88) {
+        throw new RangeError("Custom samples map files 1\u201388 to MIDI notes 21\u2013108.");
+      }
+      for (const extension of CUSTOM_SAMPLE_EXTENSIONS) {
+        const url = new URL(`${sampleNumber}.${extension}`, directoryUrl).href;
+        const response = await fetch(url);
+        if (response.ok) {
+          return {
+            url,
+            rootMidiNote: midiNote,
+            audioData: await response.arrayBuffer()
+          };
+        }
+        if (response.status !== 404) {
+          throw new Error(`Unable to check audio sample (${response.status}): ${url}`);
+        }
+      }
+      throw new Error(
+        `No supported audio file was found for keyboard note ${sampleNumber} (tried ${CUSTOM_SAMPLE_EXTENSIONS.map((extension) => `.${extension}`).join(", ")}).`
+      );
+    });
+  }
+
+  // controllers/metaAudioController.ts
+  var META_INSTRUMENTS = [
+    { id: "meta-piano", label: "Piano", layerPattern: /_Vel03_/ },
+    { id: "meta-nylon-guitar", label: "Nylon guitar", layerPattern: /_Vel02Pick_/ },
+    { id: "meta-steel-guitar", label: "Steel guitar", layerPattern: /_Vel02_/ }
+  ];
+  var META_OPEN_SOUND_REVISION = "514c926efecdb3c7812bf00eedf8e5c8d61dd681";
+  var META_RAW_BASE = `https://raw.githubusercontent.com/facebookincubator/Meta-open-sound/${META_OPEN_SOUND_REVISION}`;
+  var PITCH_CLASSES = {
+    C: 0,
+    Cs: 1,
+    D: 2,
+    Ds: 3,
+    E: 4,
+    F: 5,
+    Fs: 6,
+    G: 7,
+    Gs: 8,
+    A: 9,
+    As: 10,
+    B: 11
+  };
+  var MetaAudioController = class {
+    constructor() {
+      this.sources = /* @__PURE__ */ new Map();
+    }
+    /**
+     * Resolves a playable instrument method for a MIDI note.
+     * @param instrumentId The Meta Open Sound instrument identifier.
+     * @param midiNote The MIDI note to play.
+     * @param context The audio context used for decoding.
+     * @returns A play method for the closest available sample.
+     */
+    async getPlayMethod(instrumentId, midiNote, context) {
+      const instrument = META_INSTRUMENTS.find(
+        (candidate) => candidate.id === instrumentId
+      );
+      if (!instrument) {
+        throw new Error(`Unsupported Meta Open Sound instrument: ${instrumentId}`);
+      }
+      let sourcePromise = this.sources.get(instrumentId);
+      if (!sourcePromise) {
+        sourcePromise = this.createSampleSource(instrument);
+        this.sources.set(instrumentId, sourcePromise);
+        void sourcePromise.catch(() => {
+          this.sources.delete(instrumentId);
+        });
+      }
+      const source = await sourcePromise;
+      return source.getPlayMethod(midiNote, context);
+    }
+    async createSampleSource(instrument) {
+      const manifestUrl = `${META_RAW_BASE}/systems/instruments/${instrument.id}/manifest.json`;
+      const response = await fetch(manifestUrl);
+      if (!response.ok) {
+        throw new Error(`Unable to load the Meta instrument manifest (${response.status}).`);
+      }
+      const manifest = await response.json();
+      const mappedSamples = this.readManifest(manifest, instrument);
+      if (mappedSamples.length === 0) {
+        throw new Error(`No playable samples were found for ${instrument.id}.`);
+      }
+      return new SampleSource(async (midiNote) => {
+        let closest;
+        for (const sample of mappedSamples) {
+          if (!closest || Math.abs(sample.midiNote - midiNote) < Math.abs(closest.midiNote - midiNote)) {
+            closest = sample;
+          }
+        }
+        if (!closest) {
+          throw new Error(`No sample is available for MIDI note ${midiNote}.`);
+        }
+        return closest;
+      });
+    }
+    readManifest(manifest, instrument) {
+      if (typeof manifest !== "object" || manifest === null || !("samples" in manifest)) {
+        throw new Error(`The Meta instrument manifest for ${instrument.id} is invalid.`);
+      }
+      const samples = manifest.samples;
+      if (!Array.isArray(samples)) {
+        throw new Error(`The Meta instrument manifest for ${instrument.id} has no sample list.`);
+      }
+      const mappedSamples = [];
+      for (const sample of samples) {
+        if (typeof sample !== "object" || sample === null || !("file" in sample) || typeof sample.file !== "string" || !instrument.layerPattern.test(sample.file)) {
+          continue;
+        }
+        const noteMatch = sample.file.match(
+          /_(A|As|B|C|Cs|D|Ds|E|F|Fs|G|Gs)([0-8])_01\.wav$/i
+        );
+        const pitchClass = noteMatch?.[1] ? PITCH_CLASSES[noteMatch[1]] : void 0;
+        const octave = noteMatch?.[2] === void 0 ? void 0 : Number(noteMatch[2]);
+        if (pitchClass === void 0 || octave === void 0) {
+          continue;
+        }
+        const file = sample.file.replace(/\.wav$/i, ".ogg");
+        mappedSamples.push({
+          midiNote: 12 * (octave + 1) + pitchClass,
+          rootMidiNote: 12 * (octave + 1) + pitchClass,
+          url: `${META_RAW_BASE}/systems/instruments/${instrument.id}/ogg/${encodeURIComponent(file)}`
+        });
+      }
+      return mappedSamples;
+    }
+  };
+
+  // controllers/appController.ts
+  var AppController = class {
+    /**
+     * Creates the app controller and wires keyboard, source, volume, and lifecycle controls.
+     * @param view The application view receiving user interaction.
+     * @param envelopeController Provides the active synthesis envelope.
+     * @param metaAudioController Resolves bundled Meta instrument samples.
+     * @param customAudioController Resolves user-provided custom samples.
+     */
+    constructor(view, envelopeController2, metaAudioController, customAudioController) {
+      this.activeVoices = /* @__PURE__ */ new Map();
+      this.selectedSource = "sine";
+      this.view = view;
+      this.envelopeController = envelopeController2;
+      this.metaAudioController = metaAudioController;
+      this.customAudioController = customAudioController;
+      this.view.volumeInput.addEventListener("input", (_event) => {
+        this.view.volumeOutput.textContent = `${this.view.volumeInput.value}%`;
+        setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
+      });
+      setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
+      this.view.sourceSelect.addEventListener("change", (_event) => {
+        this.selectedSource = this.view.sourceSelect.value;
+        this.updateSoundSourceUI();
+      });
+      for (const button of this.view.metaAudioButtons) {
+        button.addEventListener("click", (_event) => {
+          this.selectedSource = button.value;
+          this.updateSoundSourceUI();
+        });
+      }
+      this.view.customSourceButton.addEventListener("click", (_event) => {
+        this.selectedSource = "custom";
+        this.updateSoundSourceUI();
+      });
+      this.view.loadCustomSamplesButton.addEventListener("click", (_event) => {
+        this.loadCustomSamples();
+      });
+      this.view.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.renderSelectedKeyboard();
+      });
+      window.addEventListener("pointerup", (event) => {
+        if (event.pointerType === "mouse") {
+          this.releaseAllVoices();
+        }
+      });
+      window.addEventListener("pointercancel", (event) => {
+        if (event.pointerType === "mouse") {
+          this.releaseAllVoices();
+        }
+      });
+      window.addEventListener("mouseup", (event) => {
+        if (event.button === 0) {
+          this.releaseAllVoices();
+        }
+      });
+      window.addEventListener("blur", () => this.releaseAllVoices());
+      this.renderSelectedKeyboard();
+      this.updateSoundSourceUI();
+    }
+    /**
+     * Starts a waveform or sample voice for a MIDI note.
+     * @param midiNote The MIDI note to play.
+     * @param envelope The envelope applied to the voice.
+     * @returns A playing voice that can be released or observed for readiness.
+     */
+    playNote(midiNote, envelope) {
+      const source = this.selectedSource;
+      if (source === "sine" || source === "square" || source === "sawtooth") {
+        return playAudio(this.getWaveformPlayMethod(source), this.midiToFrequency(midiNote), envelope);
+      }
+      const context = prepareAudioContext();
+      let released = false;
+      let voice;
+      const ready = this.getSamplePlayMethod(source, midiNote, context).then(
+        (playMethod) => {
+          if (released) {
+            return;
+          }
+          voice = playAudio(playMethod, this.midiToFrequency(midiNote), envelope);
+        }
+      );
+      void ready.catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.view.soundStatus.textContent = `Audio sample error: ${message}`;
+        console.error("Unable to play the selected sample.", error);
+      });
+      return {
+        ready,
+        release: () => {
+          released = true;
+          voice?.release();
+        }
+      };
+    }
+    renderSelectedKeyboard() {
+      const keyCount = this.view.keyCountInput.valueAsNumber;
+      if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
+        this.view.keyCountInput.setCustomValidity("Enter a whole number from 1 to 88.");
+        this.view.keyCountInput.reportValidity();
+        return;
+      }
+      this.view.keyCountInput.setCustomValidity("");
+      renderKeyboard(this.view.keyboardContainer, keyCount, {
+        onPress: (midiNote) => {
+          const envelope = this.envelopeController.getEnvelope();
+          if (!envelope) {
+            return;
+          }
+          this.activeVoices.get(midiNote)?.release();
+          const voice = this.playNote(midiNote, envelope);
+          this.activeVoices.set(midiNote, voice);
+        },
+        onRelease: (midiNote) => this.releaseVoice(midiNote),
+        onHover: (midiNote, noteName) => {
+          const frequency = this.midiToFrequency(midiNote);
+          this.view.frequencyOutput.textContent = `${noteName} \u2014 ${frequency.toFixed(2)} Hz`;
+        },
+        onLeave: () => {
+          this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
+        }
+      });
+    }
+    midiToFrequency(midiNote) {
+      return 440 * 2 ** ((midiNote - 69) / 12);
+    }
+    getWaveformPlayMethod(source) {
+      switch (source) {
+        case "sine":
+          return playSine;
+        case "square":
+          return playSquare;
+        case "sawtooth":
+          return playSawtooth;
+        default:
+          throw new Error(`Unsupported waveform: ${source}`);
+      }
+    }
+    getSamplePlayMethod(source, midiNote, context) {
+      if (source.startsWith("meta-")) {
+        return this.metaAudioController.getPlayMethod(source, midiNote, context);
+      }
+      if (source === "custom") {
+        return this.customAudioController.getPlayMethod(midiNote, context);
+      }
+      return Promise.reject(new Error(`Unsupported sound source: ${source}`));
+    }
+    updateSoundSourceUI() {
+      const source = this.selectedSource;
+      this.view.customSamplePanel.hidden = source !== "custom";
+      for (const button of this.view.metaAudioButtons) {
+        button.setAttribute("aria-pressed", String(button.value === source));
+      }
+      this.view.customSourceButton.setAttribute(
+        "aria-pressed",
+        String(source === "custom")
+      );
+      if (source === "custom") {
+        this.view.soundStatus.textContent = "Use a directory containing files named 1.wav through 88.wav (OGG, MP3, and other common formats are also checked).";
+      } else if (source.startsWith("meta-")) {
+        const instrument = META_INSTRUMENTS.find(
+          (candidate) => candidate.id === source
+        );
+        this.view.soundStatus.textContent = `Meta audio \u2014 ${instrument?.label ?? "instrument"}: samples load on demand from the CC0 library.`;
+      } else {
+        this.view.soundStatus.textContent = `Using the ${source} waveform.`;
+      }
+    }
+    loadCustomSamples() {
+      try {
+        const directoryUrl = this.customAudioController.setDirectoryUrl(
+          this.view.customSampleUrlInput.value
+        );
+        this.view.customSampleUrlInput.setCustomValidity("");
+        this.view.soundStatus.textContent = `Custom sample directory ready: ${directoryUrl} Samples load when played.`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.view.customSampleUrlInput.setCustomValidity(message);
+        this.view.customSampleUrlInput.reportValidity();
+        this.view.soundStatus.textContent = `Unable to use sample directory: ${message}`;
+      }
+    }
+    releaseVoice(midiNote) {
+      this.activeVoices.get(midiNote)?.release();
+      this.activeVoices.delete(midiNote);
+    }
+    releaseAllVoices() {
+      for (const voice of this.activeVoices.values()) {
+        voice.release();
+      }
+      this.activeVoices.clear();
+    }
+  };
+
+  // controllers/customAudioController.ts
+  var CustomAudioController = class {
+    /**
+     * Normalizes a directory URL and installs a custom sample source.
+     * @param input The custom sample directory URL.
+     * @returns The normalized directory URL.
+     */
+    setDirectoryUrl(input) {
+      const directoryUrl = normalizeSampleDirectoryUrl(input);
+      this.source = createCustomSampleSource(directoryUrl);
+      return directoryUrl;
+    }
+    /**
+     * Resolves a custom sample play method for a MIDI note.
+     * @param midiNote The MIDI note to play.
+     * @param context The audio context used to decode the sample.
+     * @returns A play method for the resolved sample.
+     */
+    async getPlayMethod(midiNote, context) {
+      if (!this.source) {
+        throw new Error("Load a custom sample directory before playing custom audio.");
+      }
+      return this.source.getPlayMethod(midiNote, context);
+    }
+  };
+
+  // controllers/envelopeController.ts
+  var EnvelopeController = class {
+    /**
+     * Initializes the envelope view and listens for envelope changes.
+     * @param view The view that owns envelope controls.
+     * @param initialEnvelope The default envelope settings.
+     */
+    constructor(view, initialEnvelope) {
+      this.view = view;
+      this.currentEnvelope = initialEnvelope;
+      this.view.setChangeHandler((envelope) => {
+        this.currentEnvelope = envelope;
+      });
+      this.view.setEnvelope(initialEnvelope);
+    }
+    /**
+     * Reads the current controls and exposes the valid envelope.
+     * @returns The current envelope, or undefined when controls are invalid.
+     */
+    getEnvelope() {
+      this.currentEnvelope = this.view.readEnvelope();
+      return this.currentEnvelope;
+    }
+  };
+
+  // games/pitchIdentificationController.ts
+  var FIRST_GAME_NOTE = 60;
+  var GAME_KEY_COUNT = 25;
+  var RANDOM_NOTE_COUNT = 3;
+  var NOTE_DURATION_SECONDS = 0.45;
+  var CHORD_DURATION_MILLISECONDS = 1400;
+  var NOTE_GAP_MILLISECONDS = 140;
+  var GAME_ENVELOPE = {
+    attack: 5e-3,
+    decay: 0,
+    sustain: 1,
+    release: 0.03
+  };
+  var NOTE_PITCH_CLASSES = {
+    C: 0,
+    "C#": 1,
+    Db: 1,
+    D: 2,
+    "D#": 3,
+    Eb: 3,
+    E: 4,
+    F: 5,
+    "F#": 6,
+    Gb: 6,
+    G: 7,
+    "G#": 8,
+    Ab: 8,
+    A: 9,
+    "A#": 10,
+    Bb: 10,
+    B: 11
+  };
+  var PitchIdentificationController = class {
+    /**
+     * Creates the pitch identification controller and wires its game controls.
+     * @param view The pitch game view receiving settings and guesses.
+     * @param kind The chord or scale game type.
+     * @param patterns The available patterns for pattern-identification mode.
+     * @param playNote Starts an audio voice for a MIDI note and envelope.
+     */
+    constructor(view, kind, patterns, playNote) {
+      this.keyboardVoices = /* @__PURE__ */ new Map();
+      this.targetNotes = [];
+      this.guess = [];
+      this.submitted = false;
+      this.gameActive = false;
+      this.failedGuesses = 0;
+      this.failureLimit = 3;
+      this.hintsAllowed = 3;
+      this.hintsUsed = 0;
+      this.gameMode = "identify-pattern";
+      this.playbackToken = 0;
+      this.playbackVoices = [];
+      this.view = view;
+      this.kind = kind;
+      this.patterns = patterns;
+      this.playNote = playNote;
+      this.view.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.startGame();
+      });
+      this.view.settingsToggleButton.addEventListener("click", () => {
+        this.view.setSettingsExpanded(this.view.form.hidden);
+      });
+      for (const modeInput of this.view.modeInputs) {
+        modeInput.addEventListener("change", () => {
+          if (this.gameActive) {
+            return;
+          }
+          const selected = modeInput.checked;
+          const isKeyboardMode = selected && modeInput.value !== "identify-pattern";
+          const headingText = modeInput.value === "random-notes" ? "Your notes" : this.kind === "scales" ? "Your scale (in order)" : "Your chord (any order)";
+          this.view.setKeyboardAnswerMode(
+            isKeyboardMode,
+            headingText
+          );
+        });
+      }
+      this.view.replayButton.addEventListener("click", () => this.playTarget());
+      this.view.hintButton.addEventListener("click", () => this.useHint());
+      this.view.playGuessButton.addEventListener("click", () => this.playGuessNotes());
+      this.view.finishButton.addEventListener("click", () => this.finishGuess());
+      this.view.resetButton.addEventListener("click", () => this.resetGuess());
+      this.view.nextRoundButton.addEventListener("click", () => this.startGame());
+      this.view.backButton.addEventListener("click", () => {
+        this.resetGame();
+      });
+      renderKeyboard(
+        this.view.keyboardContainer,
+        GAME_KEY_COUNT,
+        {
+          onPress: (midiNote) => this.pressGuessKey(midiNote),
+          onRelease: (midiNote) => this.releaseKeyboardVoice(midiNote),
+          onHover: () => {
+          },
+          onLeave: () => {
+          }
+        },
+        FIRST_GAME_NOTE
+      );
+      this.setKeyboardDisabled(true);
+    }
+    /**
+     * Clears every pitch-game state and restores the initial settings view.
+     */
+    resetGame() {
+      this.gameActive = false;
+      this.stopPlayback();
+      this.releaseKeyboardVoices();
+      this.targetNotes = [];
+      this.targetPattern = void 0;
+      this.guess = [];
+      this.submitted = false;
+      this.failedGuesses = 0;
+      this.hintsUsed = 0;
+      this.gameMode = this.kind === "chords" ? "random-notes" : "identify-pattern";
+      this.failureLimit = this.view.failureLimitInput.valueAsNumber || 3;
+      this.hintsAllowed = this.view.hintLimitInput.valueAsNumber || 0;
+      this.view.gamePanel.hidden = true;
+      this.view.settingsToggleButton.hidden = true;
+      this.view.setSettingsExpanded(true);
+      this.view.status.textContent = "";
+      this.view.settingsStatus.textContent = "";
+      this.view.replayButton.hidden = false;
+      this.view.replayButton.disabled = true;
+      this.view.hintButton.disabled = true;
+      this.view.playGuessButton.hidden = false;
+      this.view.playGuessButton.disabled = true;
+      this.view.finishButton.hidden = false;
+      this.view.finishButton.disabled = true;
+      this.view.resetButton.hidden = false;
+      this.view.resetButton.disabled = true;
+      this.view.nextRoundButton.hidden = true;
+      this.view.answerOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
+        input.checked = false;
+        input.disabled = true;
+      });
+      for (const modeInput of this.view.modeInputs) {
+        modeInput.checked = modeInput.value === (this.kind === "chords" ? "random-notes" : "identify-pattern");
+      }
+      this.view.setKeyboardAnswerMode(
+        this.kind === "chords",
+        this.kind === "scales" ? "Your scale (in order)" : "Your notes"
+      );
+      this.view.element.querySelector(".pitch-game-details")?.replaceChildren();
+      this.setKeyboardDisabled(true);
+      this.updateAttemptsOutput();
+      this.updateHintsOutput();
+      this.renderGuess();
+    }
+    /**
+     * Validates settings and starts a clean pitch-identification round.
+     */
+    startGame() {
+      this.targetNotes = [];
+      this.targetPattern = void 0;
+      this.guess = [];
+      this.submitted = false;
+      this.view.element.querySelector(".pitch-game-details")?.replaceChildren();
+      this.view.status.textContent = "";
+      this.view.renderAnswerOptions([]);
+      const selectedIds = new Set(this.view.selectedPatternIds());
+      const availablePatterns = this.patterns.filter(
+        (pattern) => selectedIds.has(pattern.id)
+      );
+      if (availablePatterns.length === 0) {
+        this.showSettingsForValidation();
+        this.view.settingsStatus.textContent = `Select at least one ${this.kind === "chords" ? "chord" : "scale"}.`;
+        return;
+      }
+      this.view.settingsStatus.textContent = "";
+      const failureLimit = this.view.failureLimitInput.valueAsNumber;
+      if (!Number.isInteger(failureLimit) || failureLimit < 1 || failureLimit > 10) {
+        this.showSettingsForValidation();
+        this.view.failureLimitInput.setCustomValidity("Enter a whole number from 1 to 10.");
+        this.view.failureLimitInput.reportValidity();
+        return;
+      }
+      this.view.failureLimitInput.setCustomValidity("");
+      const hintsAllowed = this.view.hintLimitInput.valueAsNumber;
+      if (!Number.isInteger(hintsAllowed) || hintsAllowed < 0 || hintsAllowed > 10) {
+        this.showSettingsForValidation();
+        this.view.hintLimitInput.setCustomValidity("Enter a whole number from 0 to 10.");
+        this.view.hintLimitInput.reportValidity();
+        return;
+      }
+      this.view.hintLimitInput.setCustomValidity("");
+      const selectedMode = this.view.modeInputs.find(
+        (input) => input.checked
+      )?.value;
+      this.gameMode = selectedMode === "random-notes" ? "random-notes" : selectedMode === "identify-notes" ? "identify-notes" : "identify-pattern";
+      this.stopPlayback();
+      this.releaseKeyboardVoices();
+      this.targetPattern = this.randomItem(availablePatterns);
+      this.targetNotes = this.gameMode === "random-notes" ? this.randomNotes(RANDOM_NOTE_COUNT) : this.patternToMidiNotes(this.targetPattern);
+      this.failedGuesses = 0;
+      this.failureLimit = failureLimit;
+      this.hintsAllowed = hintsAllowed;
+      this.hintsUsed = 0;
+      this.gameActive = true;
+      this.guess = [];
+      this.submitted = false;
+      this.view.settingsToggleButton.hidden = false;
+      this.view.setSettingsExpanded(false);
+      this.view.gamePanel.hidden = false;
+      this.view.renderAnswerOptions(availablePatterns);
+      const keyboardAnswerMode = this.gameMode !== "identify-pattern";
+      const headingText = this.gameMode === "random-notes" ? "Your notes" : this.kind === "scales" ? "Your scale (in order)" : "Your chord (any order)";
+      this.view.setKeyboardAnswerMode(
+        keyboardAnswerMode,
+        headingText
+      );
+      this.view.replayButton.disabled = false;
+      this.view.replayButton.hidden = false;
+      this.view.playGuessButton.disabled = true;
+      this.view.finishButton.disabled = false;
+      this.view.finishButton.hidden = false;
+      this.view.resetButton.disabled = false;
+      this.view.nextRoundButton.hidden = true;
+      this.view.status.textContent = "";
+      this.view.attemptsOutput.textContent = "";
+      this.view.answerOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
+        input.checked = false;
+        input.disabled = false;
+      });
+      this.setKeyboardDisabled(!keyboardAnswerMode);
+      this.updateAttemptsOutput();
+      this.updateHintsOutput();
+      this.renderGuess();
+      this.playTarget();
+    }
+    playTarget() {
+      if (this.targetNotes.length === 0) {
+        return;
+      }
+      if (this.kind === "chords") {
+        this.playSimultaneousNotes(this.targetNotes);
+        return;
+      }
+      this.playNotesInSequence(this.targetNotes);
+    }
+    playSimultaneousNotes(notes, startMessage = "Listen to the notes\u2026", endMessage = "Your turn.") {
+      this.stopPlayback();
+      const token = this.playbackToken;
+      this.view.status.textContent = startMessage;
+      try {
+        const voices = [];
+        this.playbackVoices = voices;
+        for (const midiNote of notes) {
+          voices.push(this.playNote(midiNote, GAME_ENVELOPE));
+        }
+      } catch (error) {
+        this.releasePlaybackVoices();
+        this.showPlaybackError(error);
+        return;
+      }
+      void Promise.all(this.playbackVoices.map((voice) => voice.ready)).then(() => {
+        if (token !== this.playbackToken) {
+          return;
+        }
+        this.playbackTimeout = window.setTimeout(() => {
+          if (token !== this.playbackToken) {
+            return;
+          }
+          this.releasePlaybackVoices();
+          this.view.status.textContent = endMessage;
+        }, CHORD_DURATION_MILLISECONDS);
+      }).catch((error) => {
+        if (token === this.playbackToken) {
+          this.stopPlayback();
+          this.showPlaybackError(error);
+        }
+      });
+    }
+    playGuessNotes() {
+      if (!this.gameActive || this.submitted || this.kind !== "chords" || this.guess.length === 0) {
+        return;
+      }
+      this.playSimultaneousNotes(
+        this.guess,
+        "Playing your chosen notes\u2026",
+        "Your notes finished."
+      );
+    }
+    playNotesInSequence(notes) {
+      this.stopPlayback();
+      this.view.status.textContent = "Listen to the scale\u2026";
+      this.playNoteAt(0, this.playbackToken, notes);
+    }
+    /**
+     * Plays one note in a sequence and schedules the following note after a gap.
+     * @param index The note index to play.
+     * @param token The lifecycle token for the current playback.
+     * @param notes The MIDI notes in playback order.
+     */
+    playNoteAt(index, token, notes) {
+      if (token !== this.playbackToken) {
+        return;
+      }
+      if (index >= notes.length) {
+        this.view.status.textContent = "Your turn.";
+        return;
+      }
+      const midiNote = notes[index];
+      if (midiNote === void 0) {
+        return;
+      }
+      let voice;
+      try {
+        voice = this.playNote(midiNote, GAME_ENVELOPE);
+      } catch (error) {
+        this.showPlaybackError(error);
+        return;
+      }
+      this.playbackVoices = [voice];
+      void voice.ready.then(() => {
+        if (token !== this.playbackToken || this.playbackVoices[0] !== voice) {
+          return;
+        }
+        this.playbackTimeout = window.setTimeout(() => {
+          if (token !== this.playbackToken) {
+            return;
+          }
+          this.releasePlaybackVoices();
+          this.playbackTimeout = window.setTimeout(() => {
+            this.playNoteAt(index + 1, token, notes);
+          }, NOTE_GAP_MILLISECONDS);
+        }, NOTE_DURATION_SECONDS * 1e3);
+      }).catch((error) => {
+        if (token === this.playbackToken) {
+          this.stopPlayback();
+          this.showPlaybackError(error);
+        }
+      });
+    }
+    /**
+     * Stops playback, evaluates the guess or selected answer, and updates round state.
+     */
+    finishGuess() {
+      if (!this.gameActive || this.submitted) {
+        return;
+      }
+      let isCorrect;
+      if (this.gameMode !== "identify-pattern") {
+        isCorrect = this.guess.length === this.targetNotes.length && (this.kind === "scales" ? this.guess.every(
+          (midiNote, index) => midiNote === this.targetNotes[index]
+        ) : this.guess.every((midiNote) => this.targetNotes.includes(midiNote)));
+      } else {
+        const selectedAnswer = this.view.answerOptions.querySelector('input[type="radio"]:checked');
+        if (!selectedAnswer) {
+          this.view.status.textContent = `Choose a ${this.kind === "chords" ? "chord" : "scale"} first.`;
+          return;
+        }
+        isCorrect = selectedAnswer.value === this.targetPattern?.id;
+      }
+      this.stopPlayback();
+      this.submitted = true;
+      if (!isCorrect) {
+        this.failedGuesses += 1;
+      }
+      const gameFinished = isCorrect || this.failedGuesses >= this.failureLimit;
+      this.setKeyboardDisabled(true);
+      this.view.finishButton.disabled = true;
+      this.view.resetButton.disabled = gameFinished;
+      this.view.answerOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
+        input.disabled = true;
+      });
+      this.updateAttemptsOutput();
+      this.renderGuess();
+      if (gameFinished) {
+        this.gameActive = false;
+        this.view.replayButton.hidden = true;
+        this.view.playGuessButton.hidden = true;
+        this.view.resetButton.hidden = true;
+        this.view.finishButton.hidden = true;
+        this.view.nextRoundButton.hidden = false;
+        this.renderAnswerDetails();
+        this.view.status.textContent = isCorrect ? "Correct! Well done." : "No guesses left. Review the answer, then start a new round.";
+      } else {
+        if (this.gameMode === "identify-pattern") {
+          this.submitted = false;
+          this.view.finishButton.disabled = false;
+          this.view.answerOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
+            input.checked = false;
+            input.disabled = false;
+          });
+          this.view.status.textContent = "Not quite. Choose another answer.";
+        } else {
+          this.view.status.textContent = "Not quite. Reset your notes to try again.";
+        }
+      }
+      this.updateHintsOutput();
+    }
+    useHint() {
+      if (!this.gameActive || this.hintsUsed >= this.hintsAllowed) {
+        return;
+      }
+      this.hintsUsed += 1;
+      this.updateHintsOutput();
+      window.alert(this.kind === "chords" ? "Chord and notes guessing" : "Scale guessing");
+    }
+    resetGuess() {
+      if (!this.gameActive) {
+        return;
+      }
+      this.stopPlayback();
+      this.submitted = false;
+      this.guess = [];
+      this.view.answerOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
+        input.checked = false;
+        input.disabled = false;
+      });
+      this.view.finishButton.disabled = false;
+      this.view.resetButton.disabled = false;
+      this.setKeyboardDisabled(this.gameMode === "identify-pattern");
+      this.renderGuess();
+      const remainingFailures = this.failureLimit - this.failedGuesses;
+      this.view.status.textContent = `Answer cleared. ${remainingFailures} failed ${remainingFailures === 1 ? "guess" : "guesses"} remaining.`;
+    }
+    pressGuessKey(midiNote) {
+      try {
+        const voice = this.playNote(midiNote, GAME_ENVELOPE);
+        this.keyboardVoices.set(midiNote, voice);
+        void voice.ready.catch((error) => this.showPlaybackError(error));
+      } catch (error) {
+        this.showPlaybackError(error);
+      }
+      if (this.gameActive && !this.submitted && (this.kind === "scales" || !this.guess.includes(midiNote))) {
+        this.guess.push(midiNote);
+        if (this.kind === "chords") {
+          this.guess.sort((left, right) => left - right);
+        }
+        this.renderGuess();
+      }
+    }
+    renderGuess() {
+      this.view.playGuessButton.disabled = this.guess.length === 0 || this.submitted || !this.gameActive;
+      const items = this.guess.map(
+        (midiNote, index) => {
+          const item = document.createElement("li");
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.textContent = midiNoteName(midiNote);
+          removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
+          removeButton.disabled = this.submitted;
+          removeButton.addEventListener("click", () => {
+            if (this.submitted) {
+              return;
+            }
+            this.guess.splice(index, 1);
+            this.renderGuess();
+          });
+          item.append(removeButton);
+          return item;
+        }
+      );
+      this.view.guessList.replaceChildren(...items);
+    }
+    renderAnswerDetails() {
+      const details = document.createElement("div");
+      if (this.gameMode === "random-notes") {
+        const notes = document.createElement("p");
+        notes.textContent = `The notes were: ${this.targetNotes.map(midiNoteName).join(", ")}.`;
+        details.append(notes);
+      } else if (this.targetPattern) {
+        const name = document.createElement("h2");
+        name.textContent = this.targetPattern.name;
+        const notes = document.createElement("p");
+        notes.textContent = `Notes: ${this.targetPattern.notes.join(", ")}.`;
+        const description = document.createElement("p");
+        description.textContent = this.targetPattern.description;
+        const examples = document.createElement("p");
+        examples.textContent = `Examples: ${this.targetPattern.examples}`;
+        details.append(name, notes, description, examples);
+      }
+      this.view.element.querySelector(".pitch-game-details")?.replaceChildren(details);
+    }
+    randomNotes(count) {
+      const available = Array.from(
+        { length: GAME_KEY_COUNT },
+        (_, index) => FIRST_GAME_NOTE + index
+      );
+      for (let index = available.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        const current = available[index];
+        const swap = available[swapIndex];
+        if (current !== void 0 && swap !== void 0) {
+          available[index] = swap;
+          available[swapIndex] = current;
+        }
+      }
+      return available.slice(0, count).sort((left, right) => left - right);
+    }
+    patternToMidiNotes(pattern) {
+      let previousMidiNote = -1;
+      const notes = pattern.notes.map((note) => {
+        const pitchClass = NOTE_PITCH_CLASSES[note];
+        if (pitchClass === void 0) {
+          throw new Error(`Unsupported note in ${pattern.name}: ${note}`);
+        }
+        let midiNote = FIRST_GAME_NOTE + pitchClass;
+        while (midiNote <= previousMidiNote) {
+          midiNote += 12;
+        }
+        previousMidiNote = midiNote;
+        return midiNote;
+      });
+      if (this.kind === "scales") {
+        const rootNote = notes[0];
+        if (rootNote !== void 0) {
+          notes.push(rootNote + 12);
+        }
+      }
+      return notes;
+    }
+    randomItem(items) {
+      const item = items[Math.floor(Math.random() * items.length)];
+      if (item === void 0) {
+        throw new Error("Cannot choose from an empty collection.");
+      }
+      return item;
+    }
+    showSettingsForValidation() {
+      if (this.view.form.hidden) {
+        this.view.settingsToggleButton.hidden = false;
+        this.view.setSettingsExpanded(true);
+      }
+    }
+    setKeyboardDisabled(disabled) {
+      this.view.keyboardContainer.querySelectorAll(".piano-key").forEach((key) => {
+        key.disabled = disabled;
+      });
+    }
+    updateAttemptsOutput() {
+      this.view.attemptsOutput.textContent = `Failed guesses: ${this.failedGuesses} / ${this.failureLimit}`;
+    }
+    updateHintsOutput() {
+      this.view.hintsOutput.textContent = `Hints used: ${this.hintsUsed} / ${this.hintsAllowed}`;
+      this.view.hintButton.disabled = !this.gameActive || this.hintsUsed >= this.hintsAllowed;
+    }
+    showPlaybackError(error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.view.status.textContent = `Unable to play notes: ${message}`;
+    }
+    stopPlayback() {
+      this.playbackToken += 1;
+      if (this.playbackTimeout !== void 0) {
+        window.clearTimeout(this.playbackTimeout);
+        this.playbackTimeout = void 0;
+      }
+      this.releasePlaybackVoices();
+    }
+    releasePlaybackVoices() {
+      for (const voice of this.playbackVoices) {
+        voice.release();
+      }
+      this.playbackVoices = [];
+    }
+    releaseKeyboardVoice(midiNote) {
+      this.keyboardVoices.get(midiNote)?.release();
+      this.keyboardVoices.delete(midiNote);
+    }
+    releaseKeyboardVoices() {
+      for (const voice of this.keyboardVoices.values()) {
+        voice.release();
+      }
+      this.keyboardVoices.clear();
+    }
+  };
+
+  // games/pitchGameData.ts
+  var CHORDS = [
+    {
+      id: "c-major",
+      name: "C major triad",
+      notes: ["C", "E", "G"],
+      description: "A major triad built from the root, major third, and perfect fifth.",
+      examples: "C major appears in countless pop songs and is often used as a home chord."
+    }
+  ];
+  var SCALES = [
+    {
+      id: "c-major",
+      name: "C major scale",
+      notes: ["C", "D", "E", "F", "G", "A", "B"],
+      description: "A seven-note scale with the interval pattern whole, whole, half, whole, whole, whole, half.",
+      examples: "The white keys from C to the next C form the C major scale."
+    }
+  ];
+
+  // games/pitchIdentificationView.ts
+  function createPitchIdentificationView(kind, title, instructions, patterns) {
+    const styles = document.createElement("style");
+    styles.textContent = `
+    .pitch-game-settings {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 1rem;
+    }
+    .pitch-game-settings h1 {
+      margin-top: 0.75rem;
+    }
+    .pitch-game-controls {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+    .pitch-game-controls[hidden],
+    .pitch-game-settings-toggle[hidden],
+    .pitch-game-panel[hidden],
+    .pitch-game-answer-options[hidden],
+    .pitch-game-keyboard[hidden] {
+      display: none;
+    }
+    .pitch-game-settings-toggle {
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+    }
+    .pitch-game-settings-toggle svg {
+      display: block;
+    }
+    .pitch-game-settings fieldset,
+    .pitch-game-answer-options {
+      border: 1px solid #dadce0;
+      margin: 0;
+      min-width: 13rem;
+      padding: 0.5rem 0.75rem;
+    }
+    .pitch-game-pattern-options,
+    .pitch-game-answer-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .pitch-game-mode label,
+    .pitch-game-pattern-options label,
+    .pitch-game-answer-options label {
+      align-items: center;
+      display: flex;
+      gap: 0.35rem;
+    }
+    .pitch-game-mode input,
+    .pitch-game-pattern-options input,
+    .pitch-game-answer-options input {
+      margin: 0;
+    }
+    .pitch-game-panel {
+      margin-top: 1.5rem;
+    }
+    .pitch-game-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+    .pitch-game-actions button,
+    .pitch-game-controls button,
+    .pitch-game-settings > button {
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+    }
+    .pitch-game-actions button[hidden] {
+      display: none;
+    }
+    .pitch-game-reset {
+      background: #fce8e6;
+      border: 1px solid #f1b8b3;
+    }
+    .pitch-game-finish {
+      background: #e6f4ea;
+      border: 1px solid #a8dab5;
+    }
+    .pitch-game-guess {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+      margin: 0.5rem 0;
+      padding: 0;
+    }
+    .pitch-game-guess button {
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+    }
+    .pitch-game-status {
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+    .pitch-game-details {
+      margin-top: 0.75rem;
+    }
+  `;
+    document.head.append(styles);
+    const element = document.createElement("section");
+    element.className = `pitch-game-view pitch-game-view--${kind}`;
+    element.hidden = true;
+    const settingsPanel = document.createElement("section");
+    settingsPanel.className = "pitch-game-settings";
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.textContent = "Back to keyboard";
+    const heading = document.createElement("h1");
+    heading.textContent = title;
+    const instructionParagraph = document.createElement("p");
+    instructionParagraph.textContent = instructions;
+    const settingsToggleButton = document.createElement("button");
+    settingsToggleButton.type = "button";
+    settingsToggleButton.className = "pitch-game-settings-toggle";
+    settingsToggleButton.setAttribute("aria-controls", `${kind}-game-controls`);
+    settingsToggleButton.hidden = true;
+    const form = document.createElement("form");
+    form.id = `${kind}-game-controls`;
+    form.className = "pitch-game-controls";
+    const modeInputs = [];
+    const modeFieldset = document.createElement("fieldset");
+    modeFieldset.className = "pitch-game-mode";
+    const modeLegend = document.createElement("legend");
+    modeLegend.textContent = "Game mode";
+    modeFieldset.append(modeLegend);
+    const modeOptions = kind === "chords" ? [
+      ["random-notes", "Identify 3 random notes"],
+      ["identify-pattern", "Identify a chord"],
+      ["identify-notes", "Identify chord notes on the keyboard"]
+    ] : [
+      ["identify-pattern", "Identify a scale"],
+      ["identify-notes", "Identify scale notes on the keyboard"]
+    ];
+    for (const [value, labelText] of modeOptions) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `${kind}-game-mode`;
+      input.value = value;
+      input.checked = value === (kind === "chords" ? "random-notes" : "identify-pattern");
+      modeInputs.push(input);
+      label.append(input, document.createTextNode(labelText));
+      modeFieldset.append(label);
+    }
+    form.append(modeFieldset);
+    const failureLimitLabel = document.createElement("label");
+    failureLimitLabel.htmlFor = `${kind}-failure-limit`;
+    failureLimitLabel.textContent = "Allowed failed guesses (1\u201310)";
+    const failureLimitInput = document.createElement("input");
+    failureLimitInput.id = `${kind}-failure-limit`;
+    failureLimitInput.type = "number";
+    failureLimitInput.min = "1";
+    failureLimitInput.max = "10";
+    failureLimitInput.step = "1";
+    failureLimitInput.value = "3";
+    failureLimitInput.required = true;
+    failureLimitLabel.append(failureLimitInput);
+    const hintLimitLabel = document.createElement("label");
+    hintLimitLabel.htmlFor = `${kind}-hint-limit`;
+    hintLimitLabel.textContent = "Allowed hints per round (0\u201310)";
+    const hintLimitInput = document.createElement("input");
+    hintLimitInput.id = `${kind}-hint-limit`;
+    hintLimitInput.type = "number";
+    hintLimitInput.min = "0";
+    hintLimitInput.max = "10";
+    hintLimitInput.step = "1";
+    hintLimitInput.value = "3";
+    hintLimitInput.required = true;
+    hintLimitLabel.append(hintLimitInput);
+    const patternOptions = document.createElement("fieldset");
+    patternOptions.className = "pitch-game-pattern-options";
+    const patternLegend = document.createElement("legend");
+    patternLegend.textContent = `Include ${kind} in the game`;
+    patternOptions.append(patternLegend);
+    for (const pattern of patterns) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = `${kind}-pattern`;
+      input.value = pattern.id;
+      input.checked = true;
+      label.append(input, document.createTextNode(pattern.name));
+      patternOptions.append(label);
+    }
+    const startButton = document.createElement("button");
+    startButton.type = "submit";
+    startButton.textContent = "Start new game";
+    const settingsStatus = document.createElement("output");
+    settingsStatus.className = "pitch-game-status";
+    settingsStatus.setAttribute("aria-live", "polite");
+    form.append(failureLimitLabel, hintLimitLabel, patternOptions, startButton, settingsStatus);
+    const replayButton = document.createElement("button");
+    replayButton.type = "button";
+    replayButton.textContent = "Replay";
+    replayButton.disabled = true;
+    const hintButton = document.createElement("button");
+    hintButton.type = "button";
+    hintButton.textContent = "Hint";
+    hintButton.disabled = true;
+    const playGuessButton = document.createElement("button");
+    playGuessButton.type = "button";
+    playGuessButton.textContent = "Play chosen notes";
+    playGuessButton.disabled = true;
+    playGuessButton.hidden = true;
+    const finishButton = document.createElement("button");
+    finishButton.type = "button";
+    finishButton.textContent = "Finish guess";
+    finishButton.className = "pitch-game-finish";
+    finishButton.disabled = true;
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.textContent = "Reset notes";
+    resetButton.className = "pitch-game-reset";
+    resetButton.disabled = true;
+    const nextRoundButton = document.createElement("button");
+    nextRoundButton.type = "button";
+    nextRoundButton.textContent = "Next round";
+    nextRoundButton.hidden = true;
+    const actions = document.createElement("div");
+    actions.className = "pitch-game-actions";
+    actions.append(replayButton, hintButton, playGuessButton, resetButton, finishButton, nextRoundButton);
+    const gamePanel = document.createElement("section");
+    gamePanel.className = "pitch-game-panel";
+    gamePanel.hidden = true;
+    const keyboardContainer = document.createElement("div");
+    keyboardContainer.className = "pitch-game-keyboard";
+    const answerOptions = document.createElement("fieldset");
+    answerOptions.className = "pitch-game-answer-options";
+    answerOptions.hidden = true;
+    const attemptsOutput = document.createElement("output");
+    attemptsOutput.textContent = "Failed guesses: 0 / 3";
+    attemptsOutput.setAttribute("aria-live", "polite");
+    const hintsOutput = document.createElement("output");
+    hintsOutput.textContent = "Hints used: 0 / 3";
+    hintsOutput.setAttribute("aria-live", "polite");
+    const guessHeading = document.createElement("h2");
+    guessHeading.textContent = kind === "chords" ? "Your notes" : "Your answer";
+    const guessList = document.createElement("ol");
+    guessList.className = "pitch-game-guess";
+    const status = document.createElement("output");
+    status.className = "pitch-game-status";
+    status.setAttribute("aria-live", "polite");
+    const details = document.createElement("div");
+    details.className = "pitch-game-details";
+    details.setAttribute("aria-live", "polite");
+    const setSettingsExpanded = (expanded) => {
+      form.hidden = !expanded;
+      settingsToggleButton.setAttribute("aria-expanded", String(expanded));
+      settingsToggleButton.setAttribute("aria-label", expanded ? "Hide settings" : "Show settings");
+      const chevron = expanded ? "M 6 14 L 12 8 L 18 14" : "M 6 10 L 12 16 L 18 10";
+      const icon = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg"
+      );
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("width", "24");
+      icon.setAttribute("height", "24");
+      icon.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path"
+      );
+      path.setAttribute("d", chevron);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      icon.append(path);
+      settingsToggleButton.replaceChildren(icon);
+    };
+    const setKeyboardAnswerMode = (enabled, headingText) => {
+      keyboardContainer.hidden = !enabled;
+      guessHeading.hidden = !enabled;
+      guessList.hidden = !enabled;
+      answerOptions.hidden = enabled;
+      resetButton.hidden = !enabled;
+      playGuessButton.hidden = !enabled || kind !== "chords";
+      guessHeading.textContent = headingText;
+    };
+    const selectedPatternIds = () => Array.from(
+      patternOptions.querySelectorAll('input[type="checkbox"]:checked'),
+      (input) => input.value
+    );
+    const renderAnswerOptions = (availablePatterns) => {
+      const legend = document.createElement("legend");
+      legend.textContent = `Choose a ${kind === "chords" ? "chord" : "scale"}`;
+      const labels = availablePatterns.map(
+        (pattern) => {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.name = `${kind}-answer`;
+          input.value = pattern.id;
+          label.append(input, document.createTextNode(pattern.name));
+          return label;
+        }
+      );
+      answerOptions.replaceChildren(legend, ...labels);
+    };
+    setSettingsExpanded(true);
+    setKeyboardAnswerMode(kind === "chords", "Your notes");
+    settingsPanel.append(backButton, heading, instructionParagraph, settingsToggleButton, form);
+    gamePanel.append(
+      actions,
+      keyboardContainer,
+      answerOptions,
+      attemptsOutput,
+      hintsOutput,
+      guessHeading,
+      guessList,
+      status,
+      details
+    );
+    element.append(settingsPanel, gamePanel);
+    return {
+      element,
+      backButton,
+      settingsToggleButton,
+      form,
+      modeInputs,
+      failureLimitInput,
+      hintLimitInput,
+      patternOptions,
+      settingsStatus,
+      startButton,
+      gamePanel,
+      replayButton,
+      hintButton,
+      playGuessButton,
+      finishButton,
+      resetButton,
+      nextRoundButton,
+      keyboardContainer,
+      guessList,
+      answerOptions,
+      attemptsOutput,
+      hintsOutput,
+      status,
+      selectedPatternIds,
+      renderAnswerOptions,
+      setSettingsExpanded,
+      setKeyboardAnswerMode
+    };
+  }
+
+  // games/noteSequenceController.ts
+  var FIRST_GAME_NOTE2 = 60;
+  var GAME_KEY_COUNT2 = 25;
+  var NOTE_DURATION_SECONDS2 = 0.5;
+  var MIN_RANDOM_DURATION_SECONDS = 0.3;
+  var RANDOM_DURATION_RANGE_SECONDS = 0.5;
+  var NOTE_GAP_MILLISECONDS2 = 180;
+  var GAME_ENVELOPE2 = {
+    attack: 5e-3,
+    decay: 0,
+    sustain: 1,
+    release: 0.01
+  };
+  var NoteSequenceController = class {
+    /**
+     * Creates the note sequence game controller and wires its game controls.
+     * @param view The note sequence view that owns settings and game controls.
+     * @param playNote Starts an audio voice for a MIDI note and envelope.
+     */
+    constructor(view, playNote) {
+      this.keyboardVoices = /* @__PURE__ */ new Map();
+      this.sequence = [];
+      this.durations = [];
+      this.guess = [];
+      this.correctPositions = [];
+      this.submitted = false;
+      this.gameActive = false;
+      this.failedGuesses = 0;
+      this.failureLimit = 3;
+      this.hintsAllowed = 3;
+      this.hintsUsed = 0;
+      this.playbackToken = 0;
+      this.view = view;
+      this.playNote = playNote;
+      this.view.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.startGame();
+      });
+      this.view.settingsToggleButton.addEventListener("click", (_event) => {
+        this.view.setSettingsExpanded(this.view.form.hidden);
+      });
+      this.view.replayButton.addEventListener("click", (_event) => {
+        this.playSequence();
+      });
+      this.view.hintButton.addEventListener("click", () => {
+        this.useHint();
+      });
+      this.view.playMySequenceButton.addEventListener("click", (_event) => {
+        this.playMySequence();
+      });
+      this.view.finishButton.addEventListener("click", (_event) => {
+        this.finishGuess();
+      });
+      this.view.resetButton.addEventListener("click", (_event) => {
+        this.resetGuess();
+      });
+      this.view.nextRoundButton.addEventListener("click", (_event) => {
+        this.startGame();
+      });
+      renderKeyboard(
+        this.view.keyboardContainer,
+        GAME_KEY_COUNT2,
+        {
+          onPress: (midiNote) => this.pressGuessKey(midiNote),
+          onRelease: (midiNote) => this.releaseKeyboardVoice(midiNote),
+          onHover: () => {
+          },
+          onLeave: () => {
+          }
+        },
+        FIRST_GAME_NOTE2
+      );
+      this.view.keyboardContainer.querySelectorAll(".piano-key").forEach((key) => {
+        key.disabled = true;
+      });
+      this.view.backButton.addEventListener("click", (_event) => {
+        this.resetGame();
+      });
+    }
+    /**
+     * Clears every sequence-game state and restores the selection-ready view.
+     */
+    resetGame() {
+      this.gameActive = false;
+      this.stopPlayback();
+      this.releaseKeyboardVoices();
+      this.sequence = [];
+      this.durations = [];
+      this.guess = [];
+      this.correctPositions = [];
+      this.submitted = false;
+      this.failedGuesses = 0;
+      this.hintsUsed = 0;
+      this.failureLimit = this.view.failureLimitInput.valueAsNumber || 3;
+      this.hintsAllowed = this.view.hintLimitInput.valueAsNumber || 0;
+      this.view.gamePanel.hidden = true;
+      this.view.settingsToggleButton.hidden = true;
+      this.view.setSettingsExpanded(true);
+      this.view.status.textContent = "";
+      this.view.replayButton.hidden = false;
+      this.view.replayButton.disabled = true;
+      this.view.hintButton.disabled = true;
+      this.view.playMySequenceButton.hidden = false;
+      this.view.playMySequenceButton.disabled = true;
+      this.view.finishButton.hidden = false;
+      this.view.finishButton.disabled = true;
+      this.view.resetButton.hidden = false;
+      this.view.resetButton.disabled = true;
+      this.view.nextRoundButton.hidden = true;
+      this.setKeyboardDisabled(true);
+      this.updateAttemptsOutput();
+      this.updateHintsOutput();
+      this.renderGuess();
+    }
+    /**
+     * Validates settings, starts a clean round, and plays the generated sequence.
+     */
+    startGame() {
+      const noteCount = this.view.noteCountInput.valueAsNumber;
+      if (!Number.isInteger(noteCount) || noteCount < 1 || noteCount > 20) {
+        this.showSettingsForValidation();
+        this.view.noteCountInput.setCustomValidity("Enter a whole number from 1 to 20.");
+        this.view.noteCountInput.reportValidity();
+        return;
+      }
+      this.view.noteCountInput.setCustomValidity("");
+      const failureLimit = this.view.failureLimitInput.valueAsNumber;
+      if (!Number.isInteger(failureLimit) || failureLimit < 1 || failureLimit > 10) {
+        this.showSettingsForValidation();
+        this.view.failureLimitInput.setCustomValidity("Enter a whole number from 1 to 10.");
+        this.view.failureLimitInput.reportValidity();
+        return;
+      }
+      this.view.failureLimitInput.setCustomValidity("");
+      const hintsAllowed = this.view.hintLimitInput.valueAsNumber;
+      if (!Number.isInteger(hintsAllowed) || hintsAllowed < 0 || hintsAllowed > 10) {
+        this.showSettingsForValidation();
+        this.view.hintLimitInput.setCustomValidity("Enter a whole number from 0 to 10.");
+        this.view.hintLimitInput.reportValidity();
+        return;
+      }
+      this.view.hintLimitInput.setCustomValidity("");
+      this.stopPlayback();
+      this.releaseKeyboardVoices();
+      this.sequence = Array.from(
+        { length: noteCount },
+        () => FIRST_GAME_NOTE2 + Math.floor(Math.random() * GAME_KEY_COUNT2)
+      );
+      this.durations = this.sequence.map(
+        () => this.view.randomizeLengthsInput.checked ? MIN_RANDOM_DURATION_SECONDS + Math.random() * RANDOM_DURATION_RANGE_SECONDS : NOTE_DURATION_SECONDS2
+      );
+      this.failureLimit = failureLimit;
+      this.hintsAllowed = hintsAllowed;
+      this.hintsUsed = 0;
+      this.failedGuesses = 0;
+      this.gameActive = true;
+      this.guess = [];
+      this.correctPositions = [];
+      this.submitted = false;
+      this.view.settingsToggleButton.hidden = false;
+      this.view.setSettingsExpanded(false);
+      this.view.gamePanel.hidden = false;
+      this.view.replayButton.disabled = false;
+      this.view.replayButton.hidden = false;
+      this.view.playMySequenceButton.hidden = false;
+      this.view.finishButton.disabled = false;
+      this.view.finishButton.hidden = false;
+      this.view.resetButton.disabled = false;
+      this.view.resetButton.hidden = false;
+      this.view.nextRoundButton.hidden = true;
+      this.setKeyboardDisabled(false);
+      this.updateAttemptsOutput();
+      this.updateHintsOutput();
+      this.renderGuess();
+      this.playSequence();
+    }
+    playSequence() {
+      this.playNotes(
+        this.sequence,
+        this.durations,
+        "Listen to the sequence\u2026",
+        "Your turn. Play the notes in order."
+      );
+    }
+    playMySequence() {
+      const notes = [...this.guess];
+      const durations = notes.map(
+        (_midiNote, index) => this.durations[index] ?? NOTE_DURATION_SECONDS2
+      );
+      this.playNotes(
+        notes,
+        durations,
+        "Playing your sequence\u2026",
+        "Your sequence finished."
+      );
+    }
+    playNotes(notes, durations, startMessage, endMessage) {
+      if (notes.length === 0) {
+        return;
+      }
+      this.stopPlayback();
+      this.view.status.textContent = startMessage;
+      this.playNoteAt(0, this.playbackToken, notes, durations, endMessage);
+    }
+    /**
+     * Plays a note list recursively, stopping old playback and scheduling gaps between notes.
+     * @param index The index of the note that should start next.
+     * @param token The lifecycle token that prevents stale playback callbacks.
+     * @param notes The MIDI notes to play.
+     * @param durations The duration of each note.
+     * @param endMessage The status text to show after the sequence.
+     */
+    playNoteAt(index, token, notes, durations, endMessage) {
+      if (token !== this.playbackToken) {
+        return;
+      }
+      if (index >= notes.length) {
+        this.view.status.textContent = endMessage;
+        return;
+      }
+      const midiNote = notes[index];
+      const duration = durations[index];
+      if (midiNote === void 0 || duration === void 0) {
+        return;
+      }
+      const voice = this.playNote(midiNote, GAME_ENVELOPE2);
+      this.playbackVoice = voice;
+      void voice.ready.then(() => {
+        if (token !== this.playbackToken || this.playbackVoice !== voice) {
+          return;
+        }
+        this.playbackTimeout = window.setTimeout(() => {
+          if (token !== this.playbackToken) {
+            return;
+          }
+          voice.release();
+          this.playbackVoice = void 0;
+          this.playbackTimeout = window.setTimeout(() => {
+            this.playNoteAt(index + 1, token, notes, durations, endMessage);
+          }, NOTE_GAP_MILLISECONDS2);
+        }, duration * 1e3);
+      }).catch((error) => {
+        if (token === this.playbackToken) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.view.status.textContent = `Unable to play note: ${message}`;
+        }
+      });
+    }
+    pressGuessKey(midiNote) {
+      const voice = this.playNote(midiNote, GAME_ENVELOPE2);
+      this.keyboardVoices.set(midiNote, voice);
+      void voice.ready.catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.view.status.textContent = `Unable to play note: ${message}`;
+      });
+      if (this.gameActive && !this.submitted) {
+        if (this.gestureGuessIndex === void 0) {
+          this.gestureGuessIndex = this.guess.length;
+          this.guess.push(midiNote);
+        } else {
+          this.guess[this.gestureGuessIndex] = midiNote;
+        }
+        this.renderGuess();
+      }
+    }
+    /**
+     * Stops playback, evaluates the submitted sequence guess, and updates round state.
+     */
+    finishGuess() {
+      if (!this.gameActive || this.submitted) {
+        return;
+      }
+      this.stopPlayback();
+      this.submitted = true;
+      this.correctPositions = this.guess.map(
+        (midiNote, index) => midiNote === this.sequence[index]
+      );
+      const isCorrect = this.guess.length === this.sequence.length && this.correctPositions.every((isCorrect2) => isCorrect2);
+      if (!isCorrect) {
+        this.failedGuesses += 1;
+      }
+      const gameFinished = isCorrect || this.failedGuesses >= this.failureLimit;
+      if (gameFinished) {
+        this.gameActive = false;
+        this.view.replayButton.hidden = true;
+        this.view.playMySequenceButton.hidden = true;
+        this.view.resetButton.hidden = true;
+        this.view.finishButton.hidden = true;
+        this.view.nextRoundButton.hidden = false;
+      }
+      this.setKeyboardDisabled(true);
+      this.view.finishButton.disabled = true;
+      this.view.resetButton.disabled = gameFinished;
+      this.updateAttemptsOutput();
+      this.renderGuess();
+      if (isCorrect) {
+        this.view.status.textContent = "Correct! You got the whole sequence.";
+      } else if (gameFinished) {
+        this.view.status.textContent = "No guesses left. Start a new game when ready.";
+      } else {
+        this.view.status.textContent = "Not quite. Reset keys to enter another guess.";
+      }
+      this.updateHintsOutput();
+    }
+    useHint() {
+      if (!this.gameActive || this.hintsUsed >= this.hintsAllowed) {
+        return;
+      }
+      this.hintsUsed += 1;
+      this.updateHintsOutput();
+      window.alert("Note sequence");
+    }
+    resetGuess() {
+      if (!this.gameActive) {
+        return;
+      }
+      this.stopPlayback();
+      this.gestureGuessIndex = void 0;
+      this.submitted = false;
+      this.guess = [];
+      this.correctPositions = [];
+      this.view.finishButton.disabled = false;
+      this.view.resetButton.disabled = false;
+      this.setKeyboardDisabled(false);
+      this.renderGuess();
+      const remainingFailures = this.failureLimit - this.failedGuesses;
+      const guessLabel = remainingFailures === 1 ? "guess" : "guesses";
+      this.view.status.textContent = `Guess cleared. ${remainingFailures} failed ${guessLabel} remaining.`;
+    }
+    renderGuess() {
+      this.view.playMySequenceButton.disabled = this.guess.length === 0;
+      const items = this.guess.map(
+        (midiNote, index) => {
+          const item = document.createElement("li");
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.textContent = `${index + 1}. ${midiNoteName(midiNote)}`;
+          removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
+          removeButton.disabled = this.submitted;
+          if (this.submitted) {
+            removeButton.classList.add(
+              this.correctPositions[index] ? "note-sequence-guess-note--correct" : "note-sequence-guess-note--incorrect"
+            );
+          }
+          removeButton.addEventListener("click", (_event) => {
+            if (this.submitted) {
+              return;
+            }
+            this.guess.splice(index, 1);
+            this.renderGuess();
+          });
+          item.append(removeButton);
+          return item;
+        }
+      );
+      this.view.guessList.replaceChildren(...items);
+    }
+    showSettingsForValidation() {
+      if (this.view.form.hidden) {
+        this.view.settingsToggleButton.hidden = false;
+        this.view.setSettingsExpanded(true);
+      }
+    }
+    setKeyboardDisabled(disabled) {
+      this.view.keyboardContainer.querySelectorAll(".piano-key").forEach((key) => {
+        key.disabled = disabled;
+      });
+    }
+    updateAttemptsOutput() {
+      this.view.attemptsOutput.textContent = `Failed guesses: ${this.failedGuesses} / ${this.failureLimit}`;
+    }
+    updateHintsOutput() {
+      this.view.hintsOutput.textContent = `Hints used: ${this.hintsUsed} / ${this.hintsAllowed}`;
+      this.view.hintButton.disabled = !this.gameActive || this.hintsUsed >= this.hintsAllowed;
+    }
+    stopPlayback() {
+      this.playbackToken += 1;
+      if (this.playbackTimeout !== void 0) {
+        window.clearTimeout(this.playbackTimeout);
+        this.playbackTimeout = void 0;
+      }
+      this.playbackVoice?.release();
+      this.playbackVoice = void 0;
+    }
+    releaseKeyboardVoice(midiNote) {
+      this.keyboardVoices.get(midiNote)?.release();
+      this.keyboardVoices.delete(midiNote);
+      if (this.keyboardVoices.size === 0) {
+        this.gestureGuessIndex = void 0;
+      }
+    }
+    releaseKeyboardVoices() {
+      for (const voice of this.keyboardVoices.values()) {
+        voice.release();
+      }
+      this.keyboardVoices.clear();
+      this.gestureGuessIndex = void 0;
+    }
+  };
+
+  // games/noteSequenceView.ts
+  var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+  function createSettingsChevron(direction) {
+    const icon = document.createElementNS(SVG_NAMESPACE, "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("width", "24");
+    icon.setAttribute("height", "24");
+    icon.setAttribute("aria-hidden", "true");
+    const paths = direction === "up" ? ["M 6 14 L 12 8 L 18 14", "M 6 20 L 12 14 L 18 20"] : ["M 6 10 L 12 16 L 18 10", "M 6 4 L 12 10 L 18 4"];
+    for (const pathData of paths) {
+      const path = document.createElementNS(SVG_NAMESPACE, "path");
+      path.setAttribute("d", pathData);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      icon.append(path);
+    }
+    return icon;
+  }
+  function createNoteSequenceView() {
+    const styles = document.createElement("style");
+    styles.textContent = `
+    .note-sequence-settings {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 1rem;
+    }
+    .note-sequence-settings h1 {
+      margin-top: 0.75rem;
+    }
+    .note-sequence-controls {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+    .note-sequence-controls[hidden],
+    .note-sequence-settings-toggle[hidden],
+    .note-sequence-game-panel[hidden] {
+      display: none;
+    }
+    .note-sequence-settings-toggle {
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+    }
+    .note-sequence-settings-toggle svg {
+      display: block;
+    }
+    .note-sequence-game-panel {
+      margin-top: 1.5rem;
+    }
+    .note-sequence-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+    .note-sequence-actions button,
+    .note-sequence-controls button,
+    .note-sequence-settings > button {
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+    }
+    .note-sequence-actions button[hidden] {
+      display: none;
+    }
+    .note-sequence-reset {
+      background: #fce8e6;
+      border: 1px solid #f1b8b3;
+    }
+    .note-sequence-reset:hover:not(:disabled) {
+      background: #f4c7c3;
+      border-color: #e6a09a;
+    }
+    .note-sequence-finish {
+      background: #e6f4ea;
+      border: 1px solid #a8dab5;
+    }
+    .note-sequence-finish:hover:not(:disabled) {
+      background: #cde8d4;
+      border-color: #81c995;
+    }
+    .note-sequence-randomize {
+      align-items: center;
+      display: flex;
+      gap: 0.4rem;
+    }
+    .note-sequence-randomize input {
+      margin: 0;
+    }
+    .note-sequence-guess {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+      margin: 0.5rem 0;
+      padding: 0;
+    }
+    .note-sequence-guess button {
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+    }
+    .note-sequence-guess button:disabled {
+      cursor: default;
+    }
+    .note-sequence-guess-note--correct {
+      background: #e6f4ea;
+      border-color: #188038;
+      color: #137333;
+    }
+    .note-sequence-guess-note--incorrect {
+      background: #fce8e6;
+      border-color: #d93025;
+      color: #a50e0e;
+    }
+    .note-sequence-status {
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+  `;
+    document.head.append(styles);
+    const element = document.createElement("section");
+    element.className = "note-sequence-view";
+    element.hidden = true;
+    const settingsPanel = document.createElement("section");
+    settingsPanel.className = "note-sequence-settings";
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.textContent = "Back to keyboard";
+    const heading = document.createElement("h1");
+    heading.textContent = "Note sequence";
+    const instructions = document.createElement("p");
+    instructions.textContent = "Listen to the sequence, then play the notes in order. Select a numbered note below the keyboard to remove it.";
+    const settingsToggleButton = document.createElement("button");
+    settingsToggleButton.type = "button";
+    settingsToggleButton.className = "note-sequence-settings-toggle";
+    settingsToggleButton.setAttribute("aria-controls", "note-sequence-controls");
+    settingsToggleButton.hidden = true;
+    const form = document.createElement("form");
+    form.id = "note-sequence-controls";
+    form.className = "note-sequence-controls";
+    const countLabel = document.createElement("label");
+    countLabel.htmlFor = "sequence-note-count";
+    countLabel.textContent = "Number of notes (1\u201320)";
+    const noteCountInput = document.createElement("input");
+    noteCountInput.id = "sequence-note-count";
+    noteCountInput.type = "number";
+    noteCountInput.min = "1";
+    noteCountInput.max = "20";
+    noteCountInput.step = "1";
+    noteCountInput.value = "3";
+    noteCountInput.required = true;
+    countLabel.append(noteCountInput);
+    const failureLimitLabel = document.createElement("label");
+    failureLimitLabel.htmlFor = "sequence-failure-limit";
+    failureLimitLabel.textContent = "Allowed failed guesses (1\u201310)";
+    const failureLimitInput = document.createElement("input");
+    failureLimitInput.id = "sequence-failure-limit";
+    failureLimitInput.type = "number";
+    failureLimitInput.min = "1";
+    failureLimitInput.max = "10";
+    failureLimitInput.step = "1";
+    failureLimitInput.value = "3";
+    failureLimitInput.required = true;
+    failureLimitLabel.append(failureLimitInput);
+    const hintLimitLabel = document.createElement("label");
+    hintLimitLabel.htmlFor = "sequence-hint-limit";
+    hintLimitLabel.textContent = "Allowed hints per round (0\u201310)";
+    const hintLimitInput = document.createElement("input");
+    hintLimitInput.id = "sequence-hint-limit";
+    hintLimitInput.type = "number";
+    hintLimitInput.min = "0";
+    hintLimitInput.max = "10";
+    hintLimitInput.step = "1";
+    hintLimitInput.value = "3";
+    hintLimitInput.required = true;
+    hintLimitLabel.append(hintLimitInput);
+    const randomizeLabel = document.createElement("label");
+    randomizeLabel.className = "note-sequence-randomize";
+    const randomizeLengthsInput = document.createElement("input");
+    randomizeLengthsInput.type = "checkbox";
+    randomizeLabel.append(randomizeLengthsInput, document.createTextNode("Random note lengths"));
+    const startButton = document.createElement("button");
+    startButton.type = "submit";
+    startButton.textContent = "Start new game";
+    form.append(countLabel, failureLimitLabel, hintLimitLabel, randomizeLabel, startButton);
+    const replayButton = document.createElement("button");
+    replayButton.type = "button";
+    replayButton.textContent = "Replay notes";
+    replayButton.disabled = true;
+    const hintButton = document.createElement("button");
+    hintButton.type = "button";
+    hintButton.textContent = "Hint";
+    hintButton.disabled = true;
+    const playMySequenceButton = document.createElement("button");
+    playMySequenceButton.type = "button";
+    playMySequenceButton.textContent = "Play my sequence";
+    playMySequenceButton.disabled = true;
+    const finishButton = document.createElement("button");
+    finishButton.type = "button";
+    finishButton.textContent = "Finish guess";
+    finishButton.className = "note-sequence-finish";
+    finishButton.disabled = true;
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.textContent = "Reset keys";
+    resetButton.className = "note-sequence-reset";
+    resetButton.disabled = true;
+    const nextRoundButton = document.createElement("button");
+    nextRoundButton.type = "button";
+    nextRoundButton.textContent = "Next round";
+    nextRoundButton.hidden = true;
+    const actions = document.createElement("div");
+    actions.className = "note-sequence-actions";
+    actions.append(
+      replayButton,
+      hintButton,
+      playMySequenceButton,
+      resetButton,
+      finishButton,
+      nextRoundButton
+    );
+    const gamePanel = document.createElement("section");
+    gamePanel.className = "note-sequence-game-panel";
+    gamePanel.hidden = true;
+    const keyboardContainer = document.createElement("div");
+    const attemptsOutput = document.createElement("output");
+    attemptsOutput.textContent = "Failed guesses: 0 / 3";
+    attemptsOutput.setAttribute("aria-live", "polite");
+    const hintsOutput = document.createElement("output");
+    hintsOutput.textContent = "Hints used: 0 / 3";
+    hintsOutput.setAttribute("aria-live", "polite");
+    const guessHeading = document.createElement("h2");
+    guessHeading.textContent = "Your sequence";
+    const guessList = document.createElement("ol");
+    guessList.className = "note-sequence-guess";
+    const status = document.createElement("output");
+    status.className = "note-sequence-status";
+    status.setAttribute("aria-live", "polite");
+    const setSettingsExpanded = (expanded) => {
+      form.hidden = !expanded;
+      settingsToggleButton.setAttribute("aria-expanded", String(expanded));
+      settingsToggleButton.setAttribute(
+        "aria-label",
+        expanded ? "Hide settings" : "Show settings"
+      );
+      settingsToggleButton.replaceChildren(
+        createSettingsChevron(expanded ? "up" : "down")
+      );
+    };
+    setSettingsExpanded(true);
+    settingsPanel.append(
+      backButton,
+      heading,
+      instructions,
+      settingsToggleButton,
+      form
+    );
+    gamePanel.append(
+      actions,
+      keyboardContainer,
+      attemptsOutput,
+      hintsOutput,
+      guessHeading,
+      guessList,
+      status
+    );
+    element.append(settingsPanel, gamePanel);
+    return {
+      element,
+      backButton,
+      settingsToggleButton,
+      form,
+      noteCountInput,
+      failureLimitInput,
+      hintLimitInput,
+      randomizeLengthsInput,
+      startButton,
+      gamePanel,
+      replayButton,
+      hintButton,
+      playMySequenceButton,
+      finishButton,
+      resetButton,
+      nextRoundButton,
+      keyboardContainer,
+      guessList,
+      attemptsOutput,
+      hintsOutput,
+      status,
+      setSettingsExpanded
+    };
+  }
+
+  // views/appView.ts
+  function createAppView(envelopeView2) {
+    const styles = document.createElement("style");
+    styles.textContent = `
+    body {
+      box-sizing: border-box;
+      color: #202124;
+      font: 16px/1.5 system-ui, sans-serif;
+      margin: 0;
+      padding: 2rem;
+    }
+    *, *::before, *::after {
+      box-sizing: inherit;
+    }
+    main {
+      margin: 0 auto;
+      max-width: 1100px;
+    }
+    .app-volume-control {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.75rem;
+    }
+    .app-volume-control label {
+      align-items: center;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .app-volume-control input {
+      padding: 0;
+      width: 10rem;
+    }
+    form {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+    label {
+      display: grid;
+      gap: 0.25rem;
+    }
+    input, button, select {
+      font: inherit;
+    }
+    input, select {
+      padding: 0.35rem 0.5rem;
+    }
+    button:hover:not(:disabled) {
+      box-shadow: 0 0 0 2px #dadce0;
+      filter: brightness(0.97);
+    }
+    button:focus-visible {
+      outline: 3px solid #1a73e8;
+      outline-offset: 2px;
+    }
+    input[type="number"] {
+      width: 7rem;
+    }
+    form button {
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+    }
+    .audio-source-menu {
+      position: relative;
+    }
+    .audio-source-menu summary {
+      border: 1px solid #767676;
+      border-radius: 2px;
+      cursor: pointer;
+      list-style: none;
+      padding: 0.35rem 0.75rem;
+      white-space: nowrap;
+    }
+    .audio-source-menu summary::-webkit-details-marker {
+      display: none;
+    }
+    .audio-source-submenu {
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px #0002;
+      display: none;
+      left: 0;
+      min-width: 11rem;
+      padding: 0.35rem;
+      position: absolute;
+      top: 100%;
+      z-index: 5;
+    }
+    .audio-source-menu:hover .audio-source-submenu,
+    .audio-source-menu:focus-within .audio-source-submenu,
+    .audio-source-menu[open] .audio-source-submenu {
+      display: grid;
+    }
+    .audio-source-submenu button {
+      background: #fff;
+      border: 0;
+      text-align: left;
+    }
+    .audio-source-submenu button:hover,
+    .audio-source-submenu button[aria-pressed="true"] {
+      background: #e8f0fe;
+    }
+    .custom-source-button[aria-pressed="true"] {
+      background: #e8f0fe;
+    }
+    .custom-sample-panel {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .custom-sample-panel[hidden] {
+      display: none;
+    }
+    .custom-sample-panel input {
+      min-width: 20rem;
+      width: min(36rem, 70vw);
+    }
+    .app-sound-status {
+      color: #5f6368;
+      font-size: 0.9rem;
+      margin: 0.25rem 0;
+    }
+    output {
+      display: block;
+      font-variant-numeric: tabular-nums;
+      min-height: 1.5em;
+    }
+    .keyboard-viewport {
+      margin-top: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+      width: 100%;
+    }
+    .game-navigation {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+  `;
+    document.head.append(styles);
+    const app = document.createElement("main");
+    const volumeControl = document.createElement("div");
+    volumeControl.className = "app-volume-control";
+    const volumeLabel = document.createElement("label");
+    volumeLabel.htmlFor = "app-volume";
+    volumeLabel.textContent = "Volume";
+    const volumeInput = document.createElement("input");
+    volumeInput.id = "app-volume";
+    volumeInput.type = "range";
+    volumeInput.min = "0";
+    volumeInput.max = "100";
+    volumeInput.step = "1";
+    volumeInput.value = "70";
+    volumeInput.setAttribute("aria-label", "Volume");
+    const volumeOutput = document.createElement("output");
+    volumeOutput.textContent = `${volumeInput.value}%`;
+    volumeLabel.append(volumeInput, volumeOutput);
+    volumeControl.append(volumeLabel);
+    const gameButton = document.createElement("button");
+    gameButton.type = "button";
+    gameButton.textContent = "Note sequence game";
+    const chordGameButton = document.createElement("button");
+    chordGameButton.type = "button";
+    chordGameButton.textContent = "Chord and notes game";
+    const scaleGameButton = document.createElement("button");
+    scaleGameButton.type = "button";
+    scaleGameButton.textContent = "Scale guessing game";
+    const gameNavigation = document.createElement("nav");
+    gameNavigation.className = "game-navigation";
+    gameNavigation.setAttribute("aria-label", "Learning games");
+    gameNavigation.append(gameButton, chordGameButton, scaleGameButton);
+    const keyboardScreen = document.createElement("section");
+    const heading = document.createElement("h1");
+    heading.textContent = "Musical keyboard";
+    const form = document.createElement("form");
+    const sizeLabel = document.createElement("label");
+    sizeLabel.htmlFor = "key-count";
+    sizeLabel.textContent = "Number of keys (1\u201388)";
+    const keyCountInput = document.createElement("input");
+    keyCountInput.id = "key-count";
+    keyCountInput.type = "number";
+    keyCountInput.min = "1";
+    keyCountInput.max = "88";
+    keyCountInput.step = "1";
+    keyCountInput.value = "88";
+    keyCountInput.required = true;
+    sizeLabel.append(keyCountInput);
+    const sourceLabel = document.createElement("label");
+    sourceLabel.htmlFor = "sound-source";
+    sourceLabel.textContent = "Waveform";
+    const sourceSelect = document.createElement("select");
+    sourceSelect.id = "sound-source";
+    const waveformOptions = [
+      ["sine", "Sine"],
+      ["square", "Square"],
+      ["sawtooth", "Sawtooth"]
+    ];
+    for (const [value, labelText] of waveformOptions) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = labelText;
+      sourceSelect.append(option);
+    }
+    const metaOptions = [
+      ["meta-piano", "Piano"],
+      ["meta-nylon-guitar", "Nylon guitar"],
+      ["meta-steel-guitar", "Steel guitar"]
+    ];
+    const metaAudioMenu = document.createElement("details");
+    metaAudioMenu.className = "audio-source-menu";
+    const metaAudioSummary = document.createElement("summary");
+    metaAudioSummary.textContent = "Meta audio";
+    const metaAudioSubmenu = document.createElement("div");
+    metaAudioSubmenu.className = "audio-source-submenu";
+    const metaAudioButtons = [];
+    for (const [value, labelText] of metaOptions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.value = value;
+      button.textContent = labelText;
+      button.setAttribute("aria-pressed", "false");
+      metaAudioButtons.push(button);
+      metaAudioSubmenu.append(button);
+    }
+    metaAudioMenu.append(metaAudioSummary, metaAudioSubmenu);
+    metaAudioMenu.addEventListener("pointerenter", () => {
+      metaAudioMenu.open = true;
+    });
+    metaAudioMenu.addEventListener("pointerleave", () => {
+      if (!metaAudioMenu.contains(document.activeElement)) {
+        metaAudioMenu.open = false;
+      }
+    });
+    metaAudioMenu.addEventListener("focusin", () => {
+      metaAudioMenu.open = true;
+    });
+    metaAudioMenu.addEventListener("focusout", (event) => {
+      if (!(event.relatedTarget instanceof Node) || !metaAudioMenu.contains(event.relatedTarget)) {
+        metaAudioMenu.open = false;
+      }
+    });
+    sourceLabel.append(sourceSelect);
+    const customSourceButton = document.createElement("button");
+    customSourceButton.type = "button";
+    customSourceButton.className = "custom-source-button";
+    customSourceButton.textContent = "Custom samples\u2026";
+    customSourceButton.setAttribute("aria-pressed", "false");
+    const customSamplePanel = document.createElement("div");
+    customSamplePanel.className = "custom-sample-panel";
+    customSamplePanel.hidden = true;
+    const customSampleUrlLabel = document.createElement("label");
+    customSampleUrlLabel.htmlFor = "custom-sample-url";
+    customSampleUrlLabel.textContent = "Sample directory URL";
+    const customSampleUrlInput = document.createElement("input");
+    customSampleUrlInput.id = "custom-sample-url";
+    customSampleUrlInput.type = "url";
+    customSampleUrlInput.placeholder = "https://github.com/owner/repository/tree/main/path/to/samples";
+    customSampleUrlLabel.append(customSampleUrlInput);
+    const loadCustomSamplesButton = document.createElement("button");
+    loadCustomSamplesButton.type = "button";
+    loadCustomSamplesButton.textContent = "Use sample directory";
+    customSamplePanel.append(customSampleUrlLabel, loadCustomSamplesButton);
+    const updateButton = document.createElement("button");
+    updateButton.type = "submit";
+    updateButton.textContent = "Update keyboard";
+    form.append(
+      sizeLabel,
+      sourceLabel,
+      metaAudioMenu,
+      customSourceButton,
+      customSamplePanel,
+      updateButton
+    );
+    const instructions = document.createElement("p");
+    instructions.textContent = "Hold a key with the mouse to play it. Notes stop on release unless the release envelope is increased.";
+    const frequencyOutput = document.createElement("output");
+    frequencyOutput.textContent = "Hover over a key to see its frequency.";
+    frequencyOutput.setAttribute("aria-live", "polite");
+    const soundStatus = document.createElement("output");
+    soundStatus.className = "app-sound-status";
+    soundStatus.setAttribute("aria-live", "polite");
+    soundStatus.textContent = "Choose a waveform or sample source.";
+    const keyboardContainer = document.createElement("div");
+    keyboardScreen.append(
+      gameNavigation,
+      heading,
+      form,
+      envelopeView2.element,
+      instructions,
+      soundStatus,
+      frequencyOutput,
+      keyboardContainer
+    );
+    app.append(volumeControl, keyboardScreen);
+    document.body.replaceChildren(app);
+    return {
+      element: app,
+      keyboardScreen,
+      gameButton,
+      chordGameButton,
+      scaleGameButton,
+      volumeInput,
+      volumeOutput,
+      form,
+      keyCountInput,
+      sourceSelect,
+      metaAudioButtons,
+      customSourceButton,
+      customSamplePanel,
+      customSampleUrlInput,
+      loadCustomSamplesButton,
+      soundStatus,
+      frequencyOutput,
+      keyboardContainer
+    };
+  }
+
+  // views/envelopeView.ts
+  var SVG_NAMESPACE2 = "http://www.w3.org/2000/svg";
+  var PREVIEW_SUSTAIN_HOLD_SECONDS = 1;
+  var CHART_LEFT = 58;
+  var CHART_RIGHT = 682;
+  var CHART_TOP = 24;
+  var CHART_BOTTOM = 178;
+  var CHART_HEIGHT = CHART_BOTTOM - CHART_TOP;
+  var CHART_WIDTH = CHART_RIGHT - CHART_LEFT;
+  function createSvgElement(tagName, attributes = {}, textContent) {
+    const element = document.createElementNS(SVG_NAMESPACE2, tagName);
+    for (const [attributeName, attributeValue] of Object.entries(attributes)) {
+      element.setAttribute(attributeName, attributeValue);
+    }
+    if (textContent !== void 0) {
+      element.textContent = textContent;
+    }
+    return element;
+  }
+  function createEnvelopeView() {
+    const styles = document.createElement("style");
+    styles.textContent = `
+    .envelope-controls {
+      border: 1px solid #c5c7ca;
+      margin: 0.75rem 0;
+      padding: 0.75rem;
+    }
+    .envelope-controls[hidden] {
+      display: none;
+    }
+    .envelope-controls-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    }
+    .envelope-control {
+      display: grid;
+      gap: 0.25rem;
+    }
+    .envelope-control label {
+      display: grid;
+      gap: 0.25rem;
+    }
+    .envelope-control input[type="number"] {
+      width: 7rem;
+    }
+    .envelope-control input[type="range"] {
+      padding: 0;
+      width: 100%;
+    }
+    .envelope-preview {
+      grid-column: 1 / -1;
+      margin: 0;
+      max-width: 760px;
+      width: 100%;
+    }
+    .envelope-preview svg {
+      display: block;
+      height: auto;
+      width: 100%;
+    }
+    .envelope-preview figcaption {
+      color: #5f6368;
+      font-size: 0.9rem;
+    }
+    .envelope-chart-axis {
+      stroke: #5f6368;
+      stroke-width: 1;
+    }
+    .envelope-chart-grid {
+      stroke: #dadce0;
+      stroke-dasharray: 3 3;
+      stroke-width: 1;
+    }
+    .envelope-chart-curve {
+      fill: none;
+      stroke: #d93025;
+      stroke-linejoin: round;
+      stroke-width: 3;
+    }
+    .envelope-chart-label {
+      fill: #3c4043;
+      font: 12px system-ui, sans-serif;
+    }
+  `;
+    document.head.append(styles);
+    const element = document.createElement("div");
+    element.className = "envelope-editor";
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.textContent = "Edit envelope";
+    toggleButton.setAttribute("aria-expanded", "false");
+    toggleButton.setAttribute("aria-controls", "envelope-controls");
+    const controls = document.createElement("fieldset");
+    controls.className = "envelope-controls";
+    controls.id = "envelope-controls";
+    controls.hidden = true;
+    const legend = document.createElement("legend");
+    legend.textContent = "ADSR envelope";
+    const controlGrid = document.createElement("div");
+    controlGrid.className = "envelope-controls-grid";
+    controls.append(legend, controlGrid);
+    const figure = document.createElement("figure");
+    figure.className = "envelope-preview";
+    const chart = createSvgElement("svg", {
+      viewBox: "0 0 720 250",
+      role: "img",
+      "aria-labelledby": "envelope-chart-title envelope-chart-description"
+    });
+    const chartTitle = createSvgElement(
+      "title",
+      { id: "envelope-chart-title" },
+      "ADSR envelope preview"
+    );
+    const chartDescription = createSvgElement(
+      "desc",
+      { id: "envelope-chart-description" },
+      "A graph of the attack, decay, one-second sustain preview, and release stages."
+    );
+    const chartGrid = createSvgElement("line", {
+      x1: String(CHART_LEFT),
+      y1: String(CHART_TOP),
+      x2: String(CHART_RIGHT),
+      y2: String(CHART_TOP),
+      class: "envelope-chart-grid"
+    });
+    const xAxis = createSvgElement("line", {
+      x1: String(CHART_LEFT),
+      y1: String(CHART_BOTTOM),
+      x2: String(CHART_RIGHT),
+      y2: String(CHART_BOTTOM),
+      class: "envelope-chart-axis"
+    });
+    const yAxis = createSvgElement("line", {
+      x1: String(CHART_LEFT),
+      y1: String(CHART_TOP),
+      x2: String(CHART_LEFT),
+      y2: String(CHART_BOTTOM),
+      class: "envelope-chart-axis"
+    });
+    const curve = createSvgElement("path", {
+      class: "envelope-chart-curve"
+    });
+    const maximumLevelLabel = createSvgElement(
+      "text",
+      {
+        x: String(CHART_LEFT - 10),
+        y: String(CHART_TOP + 4),
+        "text-anchor": "end",
+        class: "envelope-chart-label"
+      },
+      "1.0"
+    );
+    const minimumLevelLabel = createSvgElement(
+      "text",
+      {
+        x: String(CHART_LEFT - 10),
+        y: String(CHART_BOTTOM + 4),
+        "text-anchor": "end",
+        class: "envelope-chart-label"
+      },
+      "0"
+    );
+    const startTimeLabel = createSvgElement(
+      "text",
+      {
+        x: String(CHART_LEFT),
+        y: String(CHART_BOTTOM + 20),
+        class: "envelope-chart-label"
+      },
+      "0 s"
+    );
+    const totalTimeLabel = createSvgElement("text", {
+      x: String(CHART_RIGHT),
+      y: String(CHART_BOTTOM + 20),
+      "text-anchor": "end",
+      class: "envelope-chart-label"
+    });
+    const xAxisLabel = createSvgElement(
+      "text",
+      {
+        x: String((CHART_LEFT + CHART_RIGHT) / 2),
+        y: "244",
+        "text-anchor": "middle",
+        class: "envelope-chart-label"
+      },
+      "Time (seconds)"
+    );
+    chart.append(
+      chartTitle,
+      chartDescription,
+      chartGrid,
+      xAxis,
+      yAxis,
+      curve,
+      maximumLevelLabel,
+      minimumLevelLabel,
+      startTimeLabel,
+      totalTimeLabel,
+      xAxisLabel
+    );
+    const caption = document.createElement("figcaption");
+    caption.textContent = "Preview includes a 1-second sustain hold; during playback, sustain lasts while the mouse is held.";
+    figure.append(chart, caption);
+    controls.append(figure);
+    element.append(toggleButton, controls);
+    let changeHandler = () => {
+    };
+    function readValues(reportValidity) {
+      const numberInputs = [
+        attackControl.numberInput,
+        decayControl.numberInput,
+        sustainControl.numberInput,
+        releaseControl.numberInput
+      ];
+      for (const input of numberInputs) {
+        if (!input.validity.valid) {
+          if (reportValidity) {
+            input.reportValidity();
+          }
+          return void 0;
+        }
+      }
+      return {
+        attack: attackControl.numberInput.valueAsNumber,
+        decay: decayControl.numberInput.valueAsNumber,
+        sustain: sustainControl.numberInput.valueAsNumber,
+        release: releaseControl.numberInput.valueAsNumber
+      };
+    }
+    function updateChart() {
+      const envelope = readValues(false);
+      if (!envelope) {
+        return;
+      }
+      const totalTime = envelope.attack + envelope.decay + PREVIEW_SUSTAIN_HOLD_SECONDS + envelope.release;
+      const xForTime = (time) => CHART_LEFT + time / totalTime * CHART_WIDTH;
+      const yForLevel = (level) => CHART_BOTTOM - level * CHART_HEIGHT;
+      const attackEndX = xForTime(envelope.attack);
+      const decayEndX = xForTime(envelope.attack + envelope.decay);
+      const releaseStartX = xForTime(
+        envelope.attack + envelope.decay + PREVIEW_SUSTAIN_HOLD_SECONDS
+      );
+      const sustainY = yForLevel(envelope.sustain);
+      curve.setAttribute(
+        "d",
+        [
+          `M ${CHART_LEFT} ${CHART_BOTTOM}`,
+          `L ${attackEndX} ${CHART_TOP}`,
+          `L ${decayEndX} ${sustainY}`,
+          `L ${releaseStartX} ${sustainY}`,
+          `L ${CHART_RIGHT} ${CHART_BOTTOM}`
+        ].join(" ")
+      );
+      totalTimeLabel.textContent = `Total: ${totalTime.toFixed(2)} s`;
+    }
+    function addControl(id, labelText, initialValue, max) {
+      const control = document.createElement("div");
+      control.className = "envelope-control";
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.textContent = labelText;
+      const numberInput = document.createElement("input");
+      numberInput.id = id;
+      numberInput.type = "number";
+      numberInput.min = "0";
+      numberInput.max = max;
+      numberInput.step = "0.01";
+      numberInput.value = initialValue;
+      numberInput.required = true;
+      label.append(numberInput);
+      const rangeInput = document.createElement("input");
+      rangeInput.id = `${id}-slider`;
+      rangeInput.type = "range";
+      rangeInput.min = "0";
+      rangeInput.max = max;
+      rangeInput.step = "0.01";
+      rangeInput.value = initialValue;
+      rangeInput.setAttribute("aria-label", `${labelText} slider`);
+      numberInput.addEventListener("input", (_event) => {
+        if (!numberInput.validity.valid) {
+          changeHandler(void 0);
+          return;
+        }
+        rangeInput.value = numberInput.value;
+        updateChart();
+        changeHandler(readValues(false));
+      });
+      rangeInput.addEventListener("input", (_event) => {
+        numberInput.value = rangeInput.value;
+        updateChart();
+        changeHandler(readValues(false));
+      });
+      control.append(label, rangeInput);
+      controlGrid.append(control);
+      return { numberInput, rangeInput };
+    }
+    const attackControl = addControl(
+      "envelope-attack",
+      "Attack (seconds)",
+      "0.05",
+      "5"
+    );
+    const decayControl = addControl(
+      "envelope-decay",
+      "Decay (seconds)",
+      "0.1",
+      "5"
+    );
+    const sustainControl = addControl(
+      "envelope-sustain",
+      "Sustain (0\u20131)",
+      "0.7",
+      "1"
+    );
+    const releaseControl = addControl(
+      "envelope-release",
+      "Release (seconds)",
+      "0",
+      "5"
+    );
+    toggleButton.addEventListener("click", (_event) => {
+      controls.hidden = !controls.hidden;
+      toggleButton.setAttribute("aria-expanded", String(!controls.hidden));
+    });
+    updateChart();
+    return {
+      element,
+      setChangeHandler: (handler) => {
+        changeHandler = handler;
+      },
+      setEnvelope: (envelope) => {
+        attackControl.numberInput.value = String(envelope.attack);
+        attackControl.rangeInput.value = String(envelope.attack);
+        decayControl.numberInput.value = String(envelope.decay);
+        decayControl.rangeInput.value = String(envelope.decay);
+        sustainControl.numberInput.value = String(envelope.sustain);
+        sustainControl.rangeInput.value = String(envelope.sustain);
+        releaseControl.numberInput.value = String(envelope.release);
+        releaseControl.rangeInput.value = String(envelope.release);
+        updateChart();
+        changeHandler(envelope);
+      },
+      readEnvelope: () => readValues(true)
+    };
+  }
+
+  // main.ts
+  var envelopeView = createEnvelopeView();
+  var envelopeController = new EnvelopeController(
+    envelopeView,
+    DEFAULT_ENVELOPE
+  );
+  var appView = createAppView(envelopeView);
+  var noteSequenceView = createNoteSequenceView();
+  var chordGameView = createPitchIdentificationView(
+    "chords",
+    "Chord and notes guessing",
+    "Choose a mode: identify a chord name, click the chord notes in any order, or identify three random notes.",
+    CHORDS
+  );
+  var scaleGameView = createPitchIdentificationView(
+    "scales",
+    "Scale guessing",
+    "Choose a mode: identify the scale name or click each scale note on the keyboard in order.",
+    SCALES
+  );
+  appView.element.append(noteSequenceView.element);
+  appView.element.append(chordGameView.element, scaleGameView.element);
+  var appController = new AppController(
+    appView,
+    envelopeController,
+    new MetaAudioController(),
+    new CustomAudioController()
+  );
+  var noteSequenceController = new NoteSequenceController(
+    noteSequenceView,
+    (midiNote, envelope) => appController.playNote(midiNote, envelope)
+  );
+  var chordGameController = new PitchIdentificationController(
+    chordGameView,
+    "chords",
+    CHORDS,
+    (midiNote, envelope) => appController.playNote(midiNote, envelope)
+  );
+  var scaleGameController = new PitchIdentificationController(
+    scaleGameView,
+    "scales",
+    SCALES,
+    (midiNote, envelope) => appController.playNote(midiNote, envelope)
+  );
+  var showGame = (gameView) => {
+    noteSequenceController.resetGame();
+    chordGameController.resetGame();
+    scaleGameController.resetGame();
+    appView.keyboardScreen.hidden = true;
+    noteSequenceView.element.hidden = true;
+    chordGameView.element.hidden = true;
+    scaleGameView.element.hidden = true;
+    gameView.hidden = false;
+  };
+  appView.gameButton.addEventListener("click", () => showGame(noteSequenceView.element));
+  appView.chordGameButton.addEventListener("click", () => showGame(chordGameView.element));
+  appView.scaleGameButton.addEventListener("click", () => showGame(scaleGameView.element));
+  var returnToKeyboard = () => {
+    noteSequenceController.resetGame();
+    chordGameController.resetGame();
+    scaleGameController.resetGame();
+    noteSequenceView.element.hidden = true;
+    chordGameView.element.hidden = true;
+    scaleGameView.element.hidden = true;
+    appView.keyboardScreen.hidden = false;
+  };
+  noteSequenceView.backButton.addEventListener("click", returnToKeyboard);
+  chordGameView.backButton.addEventListener("click", returnToKeyboard);
+  scaleGameView.backButton.addEventListener("click", returnToKeyboard);
+})();
+
+    </script>
+  </body>
+</html>

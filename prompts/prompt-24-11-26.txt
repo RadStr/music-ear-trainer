@@ -1,0 +1,7 @@
+24-11-26:19-27-05
+Ok this task will require considerable effort on the research side. So lets first research and only after in the next prompt actaully implement it.
+
+I want you to find copyright free samples of piano. The samples has to have suh a copyright license that I can safely put them on my github and make them free to distribute. If no such stuff exists how can I create/record it using lmms and surge xrt patch
+
+24-11-26:19-28-24
+I would like to play the note the mouse currently points at instead of the one that  we started pointing at the start as it is now.

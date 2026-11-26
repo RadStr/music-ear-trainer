@@ -1,0 +1,41 @@
+26-11-26:12-01-55
+Ok two questions: 1) Why is the test:browser:install a script and not a devdependency?
+2) I do not seem the playwright/cypress or whatever ui testing tool to perform the actual clicking, or maybe I am jsut not looking to the right place, can you point me to the place where the clicking of the keys on keyboard is happening nad the sound/played oscillators are tested.
+
+Do not change anything just point me to the place
+
+26-11-26:12-04-41
+Ok, can you add comments into the tests explaining them and we are good to go
+
+26-11-26:12-18-51
+I newly added the following commands, can you tell me
+1) if You understand the, 2) If they are clear
+3) is there a way to improve them to make them more easily satisfiable by you.
+
+26-11-26:15-12-54
+This is kind of hard to read, can you put the suggestion directly into the agents.md
+
+26-11-26:15-15-51
+<side-chat-context>
+length=131
+This is a side conversation. Prefer explanation over action; do not make changes or carry out work unless the user explicitly asks.
+</side-chat-context>
+
+Explain what this terminal command will do. Do not run it.
+
+``node -e "const ts=require('typescript'),fs=require('fs'),glob=require('glob'); for(const f of glob.sync('**/*.ts',{ignore:['node_modules/**','dist/**']})){const s=ts.createSourceFile(f,fs.readFileSync(f,'utf8'),ts.ScriptTarget.Latest,true); function vis(n){if(ts.isMethodDeclaration(n)||ts.isFunctionDeclaration(n)||ts.isConstructorDeclaration(n)||ts.isGetAccessorDeclaration(n)||ts.isSetAccessorDeclaration(n)||ts.isArrowFunction(n)&&ts.isVariableDeclaration(n.parent)){const start=s.getLineAndCharacterOfPosition(n.getStart()).line+1,end=s.getLineAndCharacterOfPosition(n.end()).line+1,name=n.name?.getText(s)||n.parent?.name?.getText(s)||'<arrow>';console.log(`${f}:${start}-${end} ${name} len=${end-start+1} mod=${n.modifiers?.map(m=>ts.SyntaxKind[m.kind]).join(',')||''}`)} ts.forEachChild(n,vis)} vis(s)}"``
+
+26-11-26:15-34-31
+Can you satisfy the [## Testing](AGENTS.md#L45-L49) and [## Comments](AGENTS.md#L50-L54) for all of the existing code.
+
+26-11-26:15-44-08
+Why did you not run git init?
+
+26-11-26:15-46-30
+Ok can you fix the agents.md so this does not happen, that is copnsider the root of this app and not the parent directories?
+
+26-11-26:16-44-46
+Ok can you fix the agents.md so this does not happen, that is copnsider the root of this app and not the parent directories?
+
+26-11-26:16-48-30
+Can you please satisfy the [## Recording prompts](AGENTS.md#L63-L69) section for all of the existing prompts within this project. Use the times of sending the prompts, not current time

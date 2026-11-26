@@ -1,0 +1,76 @@
+22-11-26:09-33-58
+I want to create the following application.
+1) The end result should be able to be hosted purely in GitHub Pages. That is it should be pure frontend javascript. But during development you and should use TypeScript and then translate it to a javascript html file that I can host on GitHub Pages. Actually lets do jsut this for now. We will finish the rest later. So Create file main.ts, that uses a simple method from helper/hello.ts that just prints hello. It should be transatable to GitHub Pages html file that contains the translated js. Also give me the command that does the transpilation and translation.
+
+22-11-26:09-46-30
+Cool. Now lets do this.
+
+I want you to add new file keyboard.ts that renders standard musical keyboard. Make it general (that is use the formula for white and black keys). Make the rendering method general in a sense that it can be provided number of keys. I can render a single octave only or the whole piano. Add a textbox or something that lets me set the size of the keyboard.
+
+Once you have this. Create a audio/play.ts file. The file will contain a single method playAudio. The method gets frequency and plays sine wave at the give frequency.
+
+Then connect the playing of corresponding frequency to clicking the keys on the musical keyboard. For now make the keyboard only clickalbe using mouse.
+
+22-11-26:10-04-47
+Ok cool. Now I need you to do the following.
+
+1) Changing the color of the pressed key. Use red color.
+2) Now the issue is that it plays the note on click. But I would like it to be played while i hold the mouse, so it should play the whole time, not just the moment I press it.
+3) Add a dropbox that lets me to choose between sine and square and saw wave. This propagates to the playAudio method. The type of sound will be provided as an argument. for example playAudio(playSquare), will play sound which is a square wave. It will contain only the playing. Each of these play methods will be in a separate file. Try to make the playAudio method general, because later I would like to for example provide a method to it hat plays sounds corresponding to loaded .wav files.
+4) You hardcoded sound envelope to the play audio, which I do not want. I deally I would like to add a button that lets me modify an envelope to use for the played sound.
+5) Also it would be nice if each key had written the note to which it corresponds to - C4, D4, ... and so on.
+6) Also I would like to show the frequency to which it correspons when I hover a key with mouse.
+
+22-11-26:10-57-13
+1) You are in TypeScript type everything you can. Do that for everything from now on and also fix the places where you did not do that.
+2) There is issue with the audio. The sound does hold, but when I stop holding the mouse, the sound still keeps playing. Fix that.
+3) for the adsr edit I would like to also show the resulting envelope. on the x axis add time scale. For now just put the total time the envelope plays at the end.
+4) Also add slider to the adsr parameters, this is too hard to control. but also keep the textboxes if I want to put it in directly.
+
+22-11-26:11-14-46
+Two issues:
+
+1) You are putting way too much stuff into main. For example, the envelope should be in a separate file and ideally split the view and controller (mvc pattern). Same for the rest of the html page in main.
+2) The audio bug of keeping the note playing after letting off the key is still there.
+
+22-11-26:11-29-43
+The audio bug is still there. Just to amke sure that we are on the same page. When I simply click a note it keeps playing forever at the same volume, while it should simply end quickly based on the envelope. The note is not red, so it must be only audio bug.
+
+22-11-26:11-34-19
+Ok I noticed that on microsft edge t works just fine, but on mozilla firefox it does not.
+
+22-11-26:22-03-02
+Now I would like to add a simple game.
+Note that there will be more games. So 1) create directory where you will put the corresponding files - something like "games". 2) It will be triggered bzy a click of new button.
+
+So for now create a game that plays random sequence of notes.
+a) The number of notes should be configurable
+b) The notes should be for now of same length, but it should be possible for randomization
+c) The game is simple user hears the sequence and then clicks on the notes in order.
+c) Add 3 buttons: Replay, which replays the sequence. Finish guess, which puts in the locked in keys. And reset which resets the locked in keys so user can insert them again.
+d) The user clicks the keys in the order. The order is shown under the keys. Clicking on a key again removes it from the proposed solution. That is the notes that were after it will have 1 number lower.
+e) This should bbe obivous, but do not show the buttons that should be guessed with the red color which is shown when the user plays them. Play only the sound
+
+22-11-26:22-51-55
+Now I would like to add a simple game.
+Note that there will be more games. So 1) create directory where you will put the corresponding files - something like "games". 2) It will be triggered bzy a click of new button.
+
+So for now create a game that plays random sequence of notes.
+a) The number of notes should be configurable
+b) The notes should be for now of same length, but it should be possible for randomization
+c) The game is simple user hears the sequence and then clicks on the notes in order.
+c) Add 3 buttons: Replay, which replays the sequence. Finish guess, which puts in the locked in keys. And reset which resets the locked in keys so user can insert them again.
+d) The user clicks the keys in the order. The order is shown under the keys. Clicking on a key again removes it from the proposed solution. That is the notes that were after it will have 1 number lower.
+e) This should bbe obivous, but do not show the buttons that should be guessed with the red color which is shown when the user plays them. Play only the sound
+
+22-11-26:22-54-56
+Now I would like to add a simple game.
+Note that there will be more games. So 1) create directory where you will put the corresponding files - something like "games". 2) It will be triggered bzy a click of new button.
+
+So for now create a game that plays random sequence of notes.
+a) The number of notes should be configurable
+b) The notes should be for now of same length, but it should be possible for randomization
+c) The game is simple user hears the sequence and then clicks on the notes in order.
+c) Add 3 buttons: Replay, which replays the sequence. Finish guess, which puts in the locked in keys. And reset which resets the locked in keys so user can insert them again.
+d) The user clicks the keys in the order. The order is shown under the keys. Clicking on a key again removes it from the proposed solution. That is the notes that were after it will have 1 number lower.
+e) This should bbe obivous, but do not show the buttons that should be guessed with the red color which is shown when the user plays them. Play only the sound

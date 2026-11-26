@@ -1,0 +1,51 @@
+25-11-26:13-51-02
+Can you please take a look at this repository with isntruments. https://github.com/facebookincubator/Meta-open-sound?utm_source=chatgpt.com
+
+(they are in systems/instruments)
+
+And add a new option, next to the sine/square, named "meta audio", when I point to it, it shows another list of choices with the instruments available there.
+Put this controller for meta to a separate file. If possible find what can be reused for external sources, that is for example in future I would like to let user add a url poinitng to a repository directory that contains files named 1.wav (or 1.ogg or other format) up to 88.wav it will allow to play those sounds as keyboard notes. And you know what add it. That is I want both the meta specific and the custom one implemented right now.
+
+25-11-26:21-39-27
+can you please tell me what behaves as the cache for the meta files, i cannot find the field that behaves as chage once it is fetched
+
+25-11-26:22-01-10
+I would like you to add a new game to the games directory. Respectively 2 games:
+The first game is similar to the note sequence guessing game. Except now it plays k notes at the same time and the user has to get which notes were that. It will have 2 modes - 1 with random notes and second where the user has to guess a chord. Note that this is a learning tools for me, so I want you insert only a single chord for now, but make it easy for me to extend with new chords. Each chord object should have the following info - Name, of which notes it consist, description (string) and examples (string)
+The second game will be for guessing scales, so it is basically the note guessing game, but now the user has to guess the scale. Again it is for my learning, so it should be easy to add new scales and the scales should have the same properties as the chords.
+
+In both games, there should be radio buttons that let user choose which chords/scales do they want to have in the game guessing. Both added games have to contain setting that lets me set number of failed tries until failure.
+
+25-11-26:22-09-33
+This is cool. Keep it. But it is not exactly what I had in mind. So keep the current version and at another version of the game. It has the keyboard and user has to click on the notes that form chord (in the case of the chord guessing game). Again there should be buttons to replay/reset notes.
+Similarly for the scale game, add this mode and again replay/reset notes. Note that for the scale game the order of the notes matter. For the chord came it does not.
+
+And one last thing. Both games have the setting that lets the user choose the note count, it really does note make sense. Both chords and scales have the number of notes set implicitly.
+
+25-11-26:22-12-09
+The "Identify a chord" game should not have reset keys button.
+
+25-11-26:22-14-08
+The chord guessing game should have a button that plays all the user chosen notes at once
+
+25-11-26:22-39-25
+Add a help system. Each game should have a setting for number of allowed hints per round. The hint/help system will simply add a hint button. The action that the hint does depends on the game. For now the action will be simply writing alert with string that writes the name of the game.
+
+25-11-26:23-19-44
+Can you please add a skills file for agents to work or however is it named. Put it some simple instructions.
+
+25-11-26:23-21-31
+Add in the following commands, put them into existing all new categories, whatever yields best result:
+
+- All buttons should have a on hover highlight.
+- Leaving the page with a game ends the game. It also removes all of information about the previous game, there should not be strings that are connected to the prvious game (for eample number of faield guesses and so on)
+- The menu specific stuff should not be shown when user is choosing the type of game, but this is related to the previous item, since on first launch those buttons/keyboard is not there.
+
+25-11-26:23-25-53
+I added AGENTS.md file, more specifically a "Game Lifecycle" section. Can you check the program and make sure that the items in there are satisfied.
+
+25-11-26:23-36-49
+Add tests to /test directory. The tests are up to you, but there should be a test that runs the application. Plays notes from C4 to C5 and checks that each plays sine note at the correct frequency. The check itself is up to you, whether you will check the called methods and parameters or maybe even somehow check the audio output and check its frequency or check the javascript audio engine. Surprise me, or ideally create more than a single variant if there is more valid ones.
+
+25-11-26:23-55-39
+i am pretty sure that 261 hz is not c4 also this does not run the app, add another test that runs the app and checks through cypress or something the correctness

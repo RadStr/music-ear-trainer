@@ -1,0 +1,60 @@
+23-11-26:18-52-32
+Now I would like to add a simple game.
+Note that there will be more games. So 1) create directory where you will put the corresponding files - something like "games". 2) It will be triggered bzy a click of new button.
+
+So for now create a game that plays random sequence of notes.
+a) The number of notes should be configurable
+b) The notes should be for now of same length, but it should be possible for randomization
+c) The game is simple user hears the sequence and then clicks on the notes in order.
+c) Add 3 buttons: Replay, which replays the sequence. Finish guess, which puts in the locked in keys. And reset which resets the locked in keys so user can insert them again.
+d) The user clicks the keys in the order. The order is shown under the keys. Clicking on a key again removes it from the proposed solution. That is the notes that were after it will have 1 number lower.
+e) This should bbe obivous, but do not show the buttons that should be guessed with the red color which is shown when the user plays them. Play only the sound
+
+23-11-26:19-02-12
+Now I would like to add a simple game.
+Note that there will be more games. So 1) create directory where you will put the corresponding files - something like "games". 2) It will be triggered bzy a click of new button.
+
+So for now create a game that plays random sequence of notes.
+a) The number of notes should be configurable
+b) The notes should be for now of same length, but it should be possible for randomization
+c) The game is simple user hears the sequence and then clicks on the notes in order.
+c) Add 3 buttons: Replay, which replays the sequence. Finish guess, which puts in the locked in keys. And reset which resets the locked in keys so user can insert them again.
+d) The user clicks the keys in the order. The order is shown under the keys. Clicking on a key again removes it from the proposed solution. That is the notes that were after it will have 1 number lower.
+e) This should be obvious, but do not show the buttons that should be guessed with the red color which is shown when the user plays them. Play only the sound
+
+23-11-26:19-28-34
+The game seems to work but the UX is not that good.
+
+1) Once the game starts the start new game button should be disabled. It should be enabled only after you put in either correct guess or fail n times.
+2) This brings us to another feature it would be nice to let user choose teh amount of times they can fail, that is the amount of time user locks in invalid sequence of notes.
+3) It would be nice at the end of the guess that show with green color the notes the user hit (and they did so on the correct place in the sequence!!)
+4) It would be nice to add some simple envelope but not with any long slopes, I just want it to minimize crackling not to change the sound
+5) Rename the "reset" to "Reset keys". Make the color of button slightly red.
+6) Take the Replay button and put it next to the
+7) Put the finish guess button at the right (in the group of 3, that is swap its place with Reset). ALso make the button slightly green.
+
+23-11-26:19-35-06
+Ok I think that I foudn the issue.
+
+1) Take the game start menu/settings and when user opens the game it should be the only thing that it is seen. Also it should be more at the top, separated from the game (that is the reset, replay, guess button and the keyboard)
+2) rename Replay to Replay notes
+3) Once the game starts the game settings should be hidden, but they could be expanded with needed.
+4) The start new game button should be always enabled
+
+23-11-26:19-41-54
+Change the hide/show settings buton to the classic two arrows poinitng up and two arrows pointing down. Respectivaly it jsut just the top for arros without the vertical line.
+
+23-11-26:19-46-21
+1) The red and green buttons do not get darker on hover. Fix that, please.
+2) All buttons should be removed/invisble once you either fail all or succeed and a new button named Next round should be shown. Once the button is clicked a new round with new keys but the same setting is started. The next button will be invisble and the control buttons will be shown again
+3) Can you also please add a new button "Play my sequence" that replays the sequence user has currently put in. Note that it should also have the same length as the one we are guessing.
+4) Change the default settings in the game to 3 guessed notes.
+
+23-11-26:21-42-43
+Add volume control please
+
+23-11-26:22-02-23
+no I want the volume for both classic playing and the note guessing game. Also put it at the top right.
+
+23-11-26:22-03-40
+When you show the keys that i guessed right i would like those that are wrong to be shown red

@@ -1,0 +1,17 @@
+{
+  "name": "learning-by-ear",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --test",
+    "test:browser": "node --test test/app.browser.test.mjs",
+    "test:browser:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.65.1",
+    "typescript": "^5.8.0"
+  }
+}
