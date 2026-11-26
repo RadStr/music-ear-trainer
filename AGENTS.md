@@ -58,9 +58,9 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 - Run Git commands from the app root. Before staging or committing, verify that `git rev-parse --show-toplevel` resolves to the app root.
 - Check for a `.git` entry in the app root itself. If it is absent, run `git init` from the app root even when a parent directory is already a Git repository, then verify the repository root.
 - Never initialize, stage, or commit from a parent directory. Do not configure a remote.
-- After making and validating requested changes, summarize the changes and ask the user to confirm they accept them. Do not stage anything until they accept; if they decline or cancel, leave changes unstaged.
-- After acceptance, inspect the app-root worktree and run `git add .` from the app root to stage the changes. Skip staging only if the user explicitly says not to stage.
-- Never commit without explicit user confirmation. Only after the user accepts the changes and staging is complete, use a confirmation dialog to ask whether to commit; do not rely on a plain-text reminder that the user could miss.
+- After making and validating requested changes, inspect the app-root worktree and run `git add .` from the app root to stage them. Skip staging only if the user explicitly says not to stage.
+- Once the task is complete and changes are staged, use a confirmation dialog to ask whether to commit. Ask at the end of the task; do not wait for the user to click Keep/Undo in the Copilot UI, because this workflow cannot detect those decisions.
+- Never commit without explicit user confirmation. Do not ask for a separate acceptance confirmation before staging.
 - Include an editable commit-message field in the confirmation dialog, prefilled with a clear suggested message so the user can replace it with their own.
 - If the user confirms, run `git commit` using the message currently in that field. If the user declines or cancels, leave the changes staged and do not commit.
 
