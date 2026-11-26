@@ -64,5 +64,8 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 
 - Unless the user opts out, append each prompt to `prompts/prompt-DD-MM-YY.txt`.
 - Format the timestamp as `DD-MM-YY:HH-MM-SS`. Append UTF-8 text with a blank line separator.
+- Before appending, check all `prompts/prompt-*.txt` logs, not just that day's log, for the same request. If a prompt was resent due to a retry or service issue without materially changing the request, record it only once across all dates and keep the earliest timestamp; do not treat the resend as a new prompt.
+- If duplicate entries are already present across the logs, remove the later copies and retain the earliest entry.
+- Record a materially new follow-up as a separate prompt, even if it concerns the same topic.
 - Never record credentials, private keys, tokens, or unrelated sensitive information. Sensitive information includes filepaths. If there is filepath write it only relative to the root.
 - Do not block implementation or Git staging with prompt recording unless the user explicitly requests it.

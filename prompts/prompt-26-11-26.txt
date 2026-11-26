@@ -34,8 +34,14 @@ Why did you not run git init?
 26-11-26:15-46-30
 Ok can you fix the agents.md so this does not happen, that is copnsider the root of this app and not the parent directories?
 
-26-11-26:16-44-46
-Ok can you fix the agents.md so this does not happen, that is copnsider the root of this app and not the parent directories?
-
 26-11-26:16-48-30
 Can you please satisfy the [## Recording prompts](AGENTS.md#L63-L69) section for all of the existing prompts within this project. Use the times of sending the prompts, not current time
+
+26-11-26:16-57-11
+One issue:
+1) I noticed that you included one prompt multiple times, because the services were down or something, so I sent it multiple times, so do the following
+ a) Can you remove the duplicates
+ b) Extend AGENTS.md to make sure that it will not happen again
+
+26-11-26:17-00-35
+The prompt may have been sent on previous days, it is not necessary that it all happened on the same day.
