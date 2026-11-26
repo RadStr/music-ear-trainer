@@ -1,6 +1,6 @@
 # Learning by Ear
 
-! Currently AI generated description, everything is work in progress !
+! Currently AI generated description, everything is work in progress !!
 
 ## Introduction
 
