@@ -79,3 +79,16 @@ Why?
 
 26-11-26:17-44-01
 OK extend agents.md. You are right that I do not want ot include conversational clarifications. I want to include them only if the next prompt refers to them. For example I ask to clarify something. And in the next prompt I say "Ok, do it.". Then the previous clarifying prompt should be recorded
+
+26-11-26:18-01-13
+Please add a README.md
+
+It should be as short and as clear as possible. It should have the following sections.
+
+1) Introduction - 1 to 3 sentences what is that project about. Put in the fact that the generated html file runs completely in browser and does not send any data and that proejct has two purposes. 1) Learn agentic coding and 2) Learn about music theory and focus on ear training.
+2) Content - this should have subsections - Playing - which describes the non-game playing and changing of instruments. Ideally also add images, you can get them for example by running the app and then taking a screenshot and putting the image into a "/readme-images" directory
+The next subsection should be named games with further subsections - one describing each game.
+At the end should be a Contribution section. It should contain something in this sentence - This repository is programmed mainly using free GitHub Copilot accessible within VS Code. It records prompts in /prompts automatically by command present in agents.md. Since it uses free models, the code quality really suffers (However I am not sure whether frontiers are really better in this regard, since I do not have experience with them, amybe they are just better in the "it just works" area and the code quality is really the same). So you can for this repository and rerun the prompts using some better model for better results. I plan on manually adding some scales and chords and adding what I learned about them, since this is mainly learning tool, that is I will focus on the music/ear learning on the technical aspects, so once the program will be ergonomic enough and contain exactly what I want I will extend it only through these "learning" manual contributions that help me understand the music better and the technical side will stay the same. So if you won't be happy with the technical side it will probably be better if you jsut fork, since I am not sure about accepting other contributions (I do not want to read AI generated code to check for possible malware-like behavior)
+
+26-11-26:18-07-28
+For the contribution part please keep my exact wording.
