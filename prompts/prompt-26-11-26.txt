@@ -65,3 +65,6 @@ There are two issues:
 
 26-11-26:17-35-33
 Yeah that is honestly fine, just propagate it to the agents.md
+
+26-11-26:17-38-32
+Sometimes prompts are not in the output why is that so? is it because they do not change any file?
