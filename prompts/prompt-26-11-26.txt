@@ -45,3 +45,12 @@ One issue:
 
 26-11-26:17-00-35
 The prompt may have been sent on previous days, it is not necessary that it all happened on the same day.
+
+26-11-26:17-04-50
+You are not running git add . as I asked you in the agents.md, why is that so? Answer and fix the agents.md so it will nto happen anymore
+
+26-11-26:17-09-26
+Ok, I guess. But ideally you would run the git commit command or something or show me dialog or something. Simply showing 'Please commit with a message such as `Clarify staging instructions`' is not enough, I can easily miss that.
+
+26-11-26:17-17-25
+Ok thanks. Now can you please change the agents.md so oyu include the option with custom git commit message
