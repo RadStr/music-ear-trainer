@@ -66,10 +66,11 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 
 ## Recording prompts
 
-- Unless the user opts out, record each user prompt verbatim in `prompts/prompt-DD-MM-YY.txt`, using the date the prompt was sent. Put its timestamp (`DD-MM-YY:HH-MM-SS`) in the log entry, not in the filename; colons are not valid in Windows filenames. Append UTF-8 text with a blank line separator, creating the daily file if needed. Do not create a separate timestamp-named prompt file.
+- Unless the user opts out, record task requests and materially new task follow-ups verbatim in `prompts/prompt-DD-MM-YY.txt`, using the date each message was sent. Put each timestamp (`DD-MM-YY:HH-MM-SS`) in its log entry, not in the filename; colons are not valid in Windows filenames. Append UTF-8 text with a blank line separator, creating the daily file if needed. Do not create a separate timestamp-named prompt file.
+- Do not record conversational-only clarifications, discussion, or acknowledgements that do not themselves request or advance task work. If a later actionable prompt clearly refers to an earlier clarification (for example, “Ok, do it”), record that relevant clarification verbatim with its original timestamp along with the actionable follow-up. Do not include unrelated conversational messages.
 - Before appending, check all `prompts/prompt-*.txt` logs, not just that day's log, for the same request. If a prompt was resent due to a retry or service issue without materially changing the request, record it only once across all dates and keep the earliest timestamp; do not treat the resend as a new prompt.
 - If duplicate entries are already present across the logs, remove the later copies and retain the earliest entry.
-- Record a materially new follow-up as a separate prompt, even if it concerns the same topic.
+- Record a materially new task follow-up as a separate prompt, even if it concerns the same topic.
 - Never record credentials, private keys, tokens, or unrelated sensitive information. Sensitive information includes filepaths. If there is filepath write it only relative to the root.
-- Record the prompt at the start of the task and verify that the exact prompt and timestamp appear in the intended daily log before finishing. If recording fails, correct it and verify again; do not claim it was recorded otherwise.
+- Record eligible task prompts before finishing the task and verify that the exact prompt text and timestamp appear in the intended daily log. For deferred clarifications, record them when a later actionable prompt refers to them. If recording fails, correct it and verify again; do not claim it was recorded otherwise.
 - Do not block implementation with prompt recording unless the user explicitly requests it.

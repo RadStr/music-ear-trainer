@@ -63,8 +63,19 @@ There are two issues:
 1) You did not add the prompt from the previous "remove hellot.ts"? Why? Can you gix Agents.md so it will not happen
 2) Ideally you would run ask me for committing only after I accept all changes, but I don't know whether it is possible, if not or it will complicate the workflow, keep it as it is.
 
+26-11-26:17-35-08
+WEll you do not ask after I confirm the changes in copilot, you ask right after yo uare done. But that is honestly fine, just clean the agents.md so it works correctly. That is you start asking after you finish prompt. Ideally you would ask after I click keep/deny on all changes but that seems not to be possible right? First answer if it is possible, do not change anything yet.
+
 26-11-26:17-35-33
 Yeah that is honestly fine, just propagate it to the agents.md
 
 26-11-26:17-38-32
 Sometimes prompts are not in the output why is that so? is it because they do not change any file?
+
+26-11-26:17-41-21
+Ok but you did not include this prompt - WEll you do not ask after I confirm the changes in copilot, you ask right after yo uare done. But that is honestly fine, just clean the agents.md so it works correctly. That is you start asking after you finish prompt. Ideally you would ask after I click keep/deny on all changes but that seems not to be possible right? First answer if it is possible, do not change anything yet?
+
+Why?
+
+26-11-26:17-44-01
+OK extend agents.md. You are right that I do not want ot include conversational clarifications. I want to include them only if the next prompt refers to them. For example I ask to clarify something. And in the next prompt I say "Ok, do it.". Then the previous clarifying prompt should be recorded
