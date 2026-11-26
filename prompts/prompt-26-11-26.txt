@@ -54,3 +54,11 @@ Ok, I guess. But ideally you would run the git commit command or something or sh
 
 26-11-26:17-17-25
 Ok thanks. Now can you please change the agents.md so oyu include the option with custom git commit message
+
+26-11-26:17-21-31
+Can you remove the hello.ts
+
+26-11-26:17-25-46
+There are two issues:
+1) You did not add the prompt from the previous "remove hellot.ts"? Why? Can you gix Agents.md so it will not happen
+2) Ideally you would run ask me for committing only after I accept all changes, but I don't know whether it is possible, if not or it will complicate the workflow, keep it as it is.
