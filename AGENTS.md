@@ -14,6 +14,7 @@
 - Keep UI behavior accessible and responsive.
 - Do not change unrelated files or generated `dist` output unless the task requires it.
 - Preserve existing behavior unless a behavior change is explicitly requested.
+- Reflect important user-facing changes, setup changes, and workflow changes in the relevant README documentation.
 
 ## UI and Interaction
 
@@ -66,7 +67,7 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 
 ## Recording prompts
 
-- Unless the user opts out, record task requests and materially new task follow-ups verbatim in `prompts/prompt-DD-MM-YY.txt`, using the date each message was sent. Put each timestamp (`DD-MM-YY:HH-MM-SS`) in its log entry, not in the filename; colons are not valid in Windows filenames. Append UTF-8 text with a blank line separator, creating the daily file if needed. Do not create a separate timestamp-named prompt file.
+- Unless the user opts out, record task requests and materially new task follow-ups verbatim in `prompts/prompt-DD-MM-YY.txt`, using the date each message was sent. The filename must contain only the date: never put a time in the filename and never create a separate timestamp-named prompt file. Put each timestamp (`DD-MM-YY:HH-MM-SS`) in its log entry; colons are not valid in Windows filenames. Append UTF-8 text with a blank line separator, creating the daily file if needed. If a timestamp-named prompt file is accidentally created, move its prompt into the appropriate daily log and remove the incorrectly named file.
 - Do not record conversational-only clarifications, discussion, or acknowledgements that do not themselves request or advance task work. If a later actionable prompt clearly refers to an earlier clarification (for example, “Ok, do it”), record that relevant clarification verbatim with its original timestamp along with the actionable follow-up. Do not include unrelated conversational messages.
 - Before appending, check all `prompts/prompt-*.txt` logs, not just that day's log, for the same request. If a prompt was resent due to a retry or service issue without materially changing the request, record it only once across all dates and keep the earliest timestamp; do not treat the resend as a new prompt.
 - If duplicate entries are already present across the logs, remove the later copies and retain the earliest entry.

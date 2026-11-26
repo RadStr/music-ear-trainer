@@ -30,7 +30,7 @@ Identify a scale by sound or play its notes on the keyboard in order.
 
 ## Deployment
 
-The GitHub Actions workflow builds and deploys `dist/` to GitHub Pages when changes are pushed to `master`. In the repository settings, set GitHub Pages' build and deployment source to **GitHub Actions**.
+The GitHub Actions workflow builds and deploys `dist/` to GitHub Pages when changes are pushed to `main`. In the repository settings, set GitHub Pages' build and deployment source to **GitHub Actions**.
 
 ## Contribution
 
