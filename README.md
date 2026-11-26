@@ -1,5 +1,7 @@
 # Learning by Ear
 
+! Currently AI generated description, everything is work in progress !
+
 ## Introduction
 
 Learning by Ear has two purposes: learning agentic coding and learning music theory, with a focus on ear training. The generated `dist/index.html` runs in your browser and sends no user data; selected remote instruments download audio samples on demand.
