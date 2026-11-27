@@ -56,10 +56,11 @@ export function createNoteSequenceView(): NoteSequenceView {
   const styles: HTMLStyleElement = document.createElement("style");
   styles.textContent = `
     .note-sequence-settings {
-      background: #f8f9fa;
-      border: 1px solid #dadce0;
-      border-radius: 6px;
-      padding: 1rem;
+      background: #fff;
+      border: 1px solid #e7e8f0;
+      border-radius: 1.25rem;
+      box-shadow: 0 18px 48px #29316a0c;
+      padding: clamp(1.25rem, 3vw, 2.25rem);
     }
     .note-sequence-settings h1 {
       margin-top: 0.75rem;
@@ -112,6 +113,7 @@ export function createNoteSequenceView(): NoteSequenceView {
     .note-sequence-finish {
       background: #e6f4ea;
       border: 1px solid #a8dab5;
+      color: #137333;
     }
     .note-sequence-finish:hover:not(:disabled) {
       background: #cde8d4;
@@ -166,6 +168,7 @@ export function createNoteSequenceView(): NoteSequenceView {
 
   const backButton: HTMLButtonElement = document.createElement("button");
   backButton.type = "button";
+  backButton.className = "btn btn-outline-secondary";
   backButton.textContent = "Back to keyboard";
 
   const heading: HTMLHeadingElement = document.createElement("h1");
@@ -176,7 +179,7 @@ export function createNoteSequenceView(): NoteSequenceView {
 
   const settingsToggleButton: HTMLButtonElement = document.createElement("button");
   settingsToggleButton.type = "button";
-  settingsToggleButton.className = "note-sequence-settings-toggle";
+  settingsToggleButton.className = "btn btn-outline-secondary note-sequence-settings-toggle";
   settingsToggleButton.setAttribute("aria-controls", "note-sequence-controls");
   settingsToggleButton.hidden = true;
 
@@ -189,6 +192,7 @@ export function createNoteSequenceView(): NoteSequenceView {
   const noteCountInput: HTMLInputElement = document.createElement("input");
   noteCountInput.id = "sequence-note-count";
   noteCountInput.type = "number";
+  noteCountInput.className = "form-control";
   noteCountInput.min = "1";
   noteCountInput.max = "20";
   noteCountInput.step = "1";
@@ -202,6 +206,7 @@ export function createNoteSequenceView(): NoteSequenceView {
   const failureLimitInput: HTMLInputElement = document.createElement("input");
   failureLimitInput.id = "sequence-failure-limit";
   failureLimitInput.type = "number";
+  failureLimitInput.className = "form-control";
   failureLimitInput.min = "1";
   failureLimitInput.max = "10";
   failureLimitInput.step = "1";
@@ -215,6 +220,7 @@ export function createNoteSequenceView(): NoteSequenceView {
   const hintLimitInput: HTMLInputElement = document.createElement("input");
   hintLimitInput.id = "sequence-hint-limit";
   hintLimitInput.type = "number";
+  hintLimitInput.className = "form-control";
   hintLimitInput.min = "0";
   hintLimitInput.max = "10";
   hintLimitInput.step = "1";
@@ -226,37 +232,43 @@ export function createNoteSequenceView(): NoteSequenceView {
   randomizeLabel.className = "note-sequence-randomize";
   const randomizeLengthsInput: HTMLInputElement = document.createElement("input");
   randomizeLengthsInput.type = "checkbox";
+  randomizeLengthsInput.className = "form-check-input";
   randomizeLabel.append(randomizeLengthsInput, document.createTextNode("Random note lengths"));
 
   const startButton: HTMLButtonElement = document.createElement("button");
   startButton.type = "submit";
+  startButton.className = "btn btn-primary";
   startButton.textContent = "Start new game";
   form.append(countLabel, failureLimitLabel, hintLimitLabel, randomizeLabel, startButton);
 
   const replayButton: HTMLButtonElement = document.createElement("button");
   replayButton.type = "button";
+  replayButton.className = "btn btn-outline-primary";
   replayButton.textContent = "Replay notes";
   replayButton.disabled = true;
   const hintButton: HTMLButtonElement = document.createElement("button");
   hintButton.type = "button";
+  hintButton.className = "btn btn-outline-primary";
   hintButton.textContent = "Hint";
   hintButton.disabled = true;
   const playMySequenceButton: HTMLButtonElement = document.createElement("button");
   playMySequenceButton.type = "button";
+  playMySequenceButton.className = "btn btn-outline-primary";
   playMySequenceButton.textContent = "Play my sequence";
   playMySequenceButton.disabled = true;
   const finishButton: HTMLButtonElement = document.createElement("button");
   finishButton.type = "button";
   finishButton.textContent = "Finish guess";
-  finishButton.className = "note-sequence-finish";
+  finishButton.className = "btn btn-success note-sequence-finish";
   finishButton.disabled = true;
   const resetButton: HTMLButtonElement = document.createElement("button");
   resetButton.type = "button";
   resetButton.textContent = "Reset keys";
-  resetButton.className = "note-sequence-reset";
+  resetButton.className = "btn btn-outline-danger note-sequence-reset";
   resetButton.disabled = true;
   const nextRoundButton: HTMLButtonElement = document.createElement("button");
   nextRoundButton.type = "button";
+  nextRoundButton.className = "btn btn-primary";
   nextRoundButton.textContent = "Next round";
   nextRoundButton.hidden = true;
   const actions: HTMLDivElement = document.createElement("div");

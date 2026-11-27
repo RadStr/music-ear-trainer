@@ -535,6 +535,7 @@ export class PitchIdentificationController {
         const item: HTMLLIElement = document.createElement("li");
         const removeButton: HTMLButtonElement = document.createElement("button");
         removeButton.type = "button";
+        removeButton.className = "btn btn-outline-secondary";
         removeButton.textContent = midiNoteName(midiNote);
         removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
         removeButton.disabled = this.submitted;

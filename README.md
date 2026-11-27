@@ -4,7 +4,7 @@
 
 ## Introduction
 
-Learning by Ear has two purposes: learning agentic coding and learning music theory, with a focus on ear training. The generated `dist/index.html` runs in your browser and sends no user data; selected remote instruments download audio samples on demand.
+Learning by Ear has two purposes: learning agentic coding and learning music theory, with a focus on ear training. The generated `dist/index.html` runs in your browser and sends no user data; selected remote instruments download audio samples on demand. Bootstrap styles are bundled into the page, so the responsive interface does not require a runtime CDN connection.
 
 ## Content
 

@@ -2,3 +2,5 @@
 
 27-11-26:01-11-06 Why is the default parameters of envelope defined on one place an then in the envelopeView it is defined again, why is the default envelope from types not used in the envelopeView, this way you can forget to modify one when changing the other. Fix that.
 
+27-11-26:14-14-45 Try to give the page a bit more modern look. Use bootstrap and stuff like that. Or maybe use tailwind for styling if possible.
+

@@ -1,6 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { build } from "esbuild";
 
+const bootstrapCss = await readFile(
+  "node_modules/bootstrap/dist/css/bootstrap.min.css",
+  "utf8",
+);
 const result = await build({
   entryPoints: ["main.ts"],
   bundle: true,
@@ -16,6 +20,7 @@ const html = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Learning by Ear</title>
+    <style>${bootstrapCss}</style>
   </head>
   <body>
     <script>

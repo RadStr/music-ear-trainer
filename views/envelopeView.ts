@@ -44,9 +44,11 @@ export function createEnvelopeView(): EnvelopeView {
   const styles: HTMLStyleElement = document.createElement("style");
   styles.textContent = `
     .envelope-controls {
-      border: 1px solid #c5c7ca;
-      margin: 0.75rem 0;
-      padding: 0.75rem;
+      background: #fafaff;
+      border: 1px solid #e7e7f0;
+      border-radius: 0.9rem;
+      margin: 0.75rem 0 1rem;
+      padding: 1rem;
     }
     .envelope-controls[hidden] {
       display: none;
@@ -65,7 +67,7 @@ export function createEnvelopeView(): EnvelopeView {
       gap: 0.25rem;
     }
     .envelope-control input[type="number"] {
-      width: 7rem;
+      max-width: 8rem;
     }
     .envelope-control input[type="range"] {
       padding: 0;
@@ -87,22 +89,22 @@ export function createEnvelopeView(): EnvelopeView {
       font-size: 0.9rem;
     }
     .envelope-chart-axis {
-      stroke: #5f6368;
+      stroke: #77788e;
       stroke-width: 1;
     }
     .envelope-chart-grid {
-      stroke: #dadce0;
+      stroke: #e2e3eb;
       stroke-dasharray: 3 3;
       stroke-width: 1;
     }
     .envelope-chart-curve {
       fill: none;
-      stroke: #d93025;
+      stroke: #6558c8;
       stroke-linejoin: round;
       stroke-width: 3;
     }
     .envelope-chart-label {
-      fill: #3c4043;
+      fill: #52536b;
       font: 12px system-ui, sans-serif;
     }
   `;
@@ -113,6 +115,7 @@ export function createEnvelopeView(): EnvelopeView {
 
   const toggleButton: HTMLButtonElement = document.createElement("button");
   toggleButton.type = "button";
+  toggleButton.className = "btn btn-outline-secondary";
   toggleButton.textContent = "Edit envelope";
   toggleButton.setAttribute("aria-expanded", "false");
   toggleButton.setAttribute("aria-controls", "envelope-controls");
@@ -315,6 +318,7 @@ export function createEnvelopeView(): EnvelopeView {
     const numberInput: HTMLInputElement = document.createElement("input");
     numberInput.id = id;
     numberInput.type = "number";
+    numberInput.className = "form-control";
     numberInput.min = "0";
     numberInput.max = max;
     numberInput.step = "0.01";
@@ -325,6 +329,7 @@ export function createEnvelopeView(): EnvelopeView {
     const rangeInput: HTMLInputElement = document.createElement("input");
     rangeInput.id = `${id}-slider`;
     rangeInput.type = "range";
+    rangeInput.className = "form-range";
     rangeInput.min = "0";
     rangeInput.max = max;
     rangeInput.step = "0.01";

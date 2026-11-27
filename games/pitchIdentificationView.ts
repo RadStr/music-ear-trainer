@@ -49,10 +49,11 @@ export function createPitchIdentificationView(
   const styles: HTMLStyleElement = document.createElement("style");
   styles.textContent = `
     .pitch-game-settings {
-      background: #f8f9fa;
-      border: 1px solid #dadce0;
-      border-radius: 6px;
-      padding: 1rem;
+      background: #fff;
+      border: 1px solid #e7e8f0;
+      border-radius: 1.25rem;
+      box-shadow: 0 18px 48px #29316a0c;
+      padding: clamp(1.25rem, 3vw, 2.25rem);
     }
     .pitch-game-settings h1 {
       margin-top: 0.75rem;
@@ -80,10 +81,11 @@ export function createPitchIdentificationView(
     }
     .pitch-game-settings fieldset,
     .pitch-game-answer-options {
-      border: 1px solid #dadce0;
+      border: 1px solid #e5e6ee;
+      border-radius: 0.75rem;
       margin: 0;
       min-width: 13rem;
-      padding: 0.5rem 0.75rem;
+      padding: 0.75rem 1rem;
     }
     .pitch-game-pattern-options,
     .pitch-game-answer-options {
@@ -159,6 +161,7 @@ export function createPitchIdentificationView(
   settingsPanel.className = "pitch-game-settings";
   const backButton: HTMLButtonElement = document.createElement("button");
   backButton.type = "button";
+  backButton.className = "btn btn-outline-secondary";
   backButton.textContent = "Back to keyboard";
 
   const heading: HTMLHeadingElement = document.createElement("h1");
@@ -168,7 +171,7 @@ export function createPitchIdentificationView(
 
   const settingsToggleButton: HTMLButtonElement = document.createElement("button");
   settingsToggleButton.type = "button";
-  settingsToggleButton.className = "pitch-game-settings-toggle";
+  settingsToggleButton.className = "btn btn-outline-secondary pitch-game-settings-toggle";
   settingsToggleButton.setAttribute("aria-controls", `${kind}-game-controls`);
   settingsToggleButton.hidden = true;
 
@@ -197,6 +200,7 @@ export function createPitchIdentificationView(
     const label: HTMLLabelElement = document.createElement("label");
     const input: HTMLInputElement = document.createElement("input");
     input.type = "radio";
+    input.className = "form-check-input";
     input.name = `${kind}-game-mode`;
     input.value = value;
     input.checked =
@@ -213,6 +217,7 @@ export function createPitchIdentificationView(
   const failureLimitInput: HTMLInputElement = document.createElement("input");
   failureLimitInput.id = `${kind}-failure-limit`;
   failureLimitInput.type = "number";
+  failureLimitInput.className = "form-control";
   failureLimitInput.min = "1";
   failureLimitInput.max = "10";
   failureLimitInput.step = "1";
@@ -226,6 +231,7 @@ export function createPitchIdentificationView(
   const hintLimitInput: HTMLInputElement = document.createElement("input");
   hintLimitInput.id = `${kind}-hint-limit`;
   hintLimitInput.type = "number";
+  hintLimitInput.className = "form-control";
   hintLimitInput.min = "0";
   hintLimitInput.max = "10";
   hintLimitInput.step = "1";
@@ -242,6 +248,7 @@ export function createPitchIdentificationView(
     const label: HTMLLabelElement = document.createElement("label");
     const input: HTMLInputElement = document.createElement("input");
     input.type = "checkbox";
+    input.className = "form-check-input";
     input.name = `${kind}-pattern`;
     input.value = pattern.id;
     input.checked = true;
@@ -251,6 +258,7 @@ export function createPitchIdentificationView(
 
   const startButton: HTMLButtonElement = document.createElement("button");
   startButton.type = "submit";
+  startButton.className = "btn btn-primary";
   startButton.textContent = "Start new game";
   const settingsStatus: HTMLOutputElement = document.createElement("output");
   settingsStatus.className = "pitch-game-status";
@@ -259,29 +267,33 @@ export function createPitchIdentificationView(
 
   const replayButton: HTMLButtonElement = document.createElement("button");
   replayButton.type = "button";
+  replayButton.className = "btn btn-outline-primary";
   replayButton.textContent = "Replay";
   replayButton.disabled = true;
   const hintButton: HTMLButtonElement = document.createElement("button");
   hintButton.type = "button";
+  hintButton.className = "btn btn-outline-primary";
   hintButton.textContent = "Hint";
   hintButton.disabled = true;
   const playGuessButton: HTMLButtonElement = document.createElement("button");
   playGuessButton.type = "button";
+  playGuessButton.className = "btn btn-outline-primary";
   playGuessButton.textContent = "Play chosen notes";
   playGuessButton.disabled = true;
   playGuessButton.hidden = true;
   const finishButton: HTMLButtonElement = document.createElement("button");
   finishButton.type = "button";
   finishButton.textContent = "Finish guess";
-  finishButton.className = "pitch-game-finish";
+  finishButton.className = "btn btn-success pitch-game-finish";
   finishButton.disabled = true;
   const resetButton: HTMLButtonElement = document.createElement("button");
   resetButton.type = "button";
   resetButton.textContent = "Reset notes";
-  resetButton.className = "pitch-game-reset";
+  resetButton.className = "btn btn-outline-danger pitch-game-reset";
   resetButton.disabled = true;
   const nextRoundButton: HTMLButtonElement = document.createElement("button");
   nextRoundButton.type = "button";
+  nextRoundButton.className = "btn btn-primary";
   nextRoundButton.textContent = "Next round";
   nextRoundButton.hidden = true;
   const actions: HTMLDivElement = document.createElement("div");
