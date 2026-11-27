@@ -28,3 +28,8 @@ Also in the appView you are doing a lot of setting of variables, cant you like p
 1) the visualizations are on when the user opens the page
 2) That the visualization of the wave is correct. Right now I am not sure it seems that the wave is drawn twice with small phase shit. Idk if that is correct or not, tell my why is that so and if it is wrong fix it.
 
+27-11-26:19-57-15 Remember the chord guessing mini game? I would like the chords be also available in the standard keyboard playing. User can click on "play chords" button and it will show a dialog that lets the user choose the chord to play (or a single note - in such case it behaves as now). If a chord is on then clicking a note plays all the notes in the chord with the root given by the user click.
+
+27-11-26:20-06-18 Why is selectedChordId of type string? Type it better as a string union.
+
+Also add to agents.md the appview initializaiton methods - that is if you initializae some ui element it sohuld be inside of a method. idk if I am making it understandable, simply follow the current structure.

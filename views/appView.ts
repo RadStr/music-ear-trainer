@@ -1,3 +1,4 @@
+import { CHORDS } from "../games/pitchGameData";
 import type { EnvelopeView } from "./envelopeView";
 
 export interface AppView {
@@ -27,6 +28,9 @@ export interface AppView {
   readonly soundStatus: HTMLOutputElement;
   readonly frequencyOutput: HTMLOutputElement;
   readonly keyboardContainer: HTMLDivElement;
+  readonly chordDialog: HTMLDialogElement;
+  readonly chordSelect: HTMLSelectElement;
+  readonly chordModeOutput: HTMLOutputElement;
 }
 
 interface VisualizationPanelView {
@@ -93,6 +97,9 @@ interface KeyboardControlsView {
   readonly customSamplePanel: HTMLDivElement;
   readonly customSampleUrlInput: HTMLInputElement;
   readonly loadCustomSamplesButton: HTMLButtonElement;
+  readonly chordDialog: HTMLDialogElement;
+  readonly chordSelect: HTMLSelectElement;
+  readonly chordModeOutput: HTMLOutputElement;
 }
 
 interface KeyboardStatusView {
@@ -104,6 +111,13 @@ interface KeyboardStatusView {
 interface KeyboardScreenView extends KeyboardControlsView, KeyboardStatusView {
   readonly element: HTMLElement;
   readonly keyboardContainer: HTMLDivElement;
+}
+
+interface ChordSettingsView {
+  readonly button: HTMLButtonElement;
+  readonly dialog: HTMLDialogElement;
+  readonly select: HTMLSelectElement;
+  readonly modeOutput: HTMLOutputElement;
 }
 
 interface AppVisualizationsView {
@@ -200,6 +214,65 @@ function createVisualizationSettings(): VisualizationSettingsView {
   dialog.append(title, form);
   button.addEventListener("click", (): void => dialog.showModal());
   return { button, dialog, audioWaveCheckbox, playedKeysCheckbox };
+}
+
+function createChordSettings(): ChordSettingsView {
+  const button: HTMLButtonElement = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-outline-secondary";
+  button.textContent = "Play chords";
+  button.setAttribute("aria-haspopup", "dialog");
+
+  const modeOutput: HTMLOutputElement = document.createElement("output");
+  modeOutput.setAttribute("aria-live", "polite");
+  modeOutput.textContent = "Single note";
+
+  const dialog: HTMLDialogElement = document.createElement("dialog");
+  dialog.id = "chord-settings-dialog";
+  dialog.className = "chord-settings-dialog";
+  dialog.setAttribute("aria-labelledby", "chord-settings-title");
+  button.setAttribute("aria-controls", dialog.id);
+
+  const title: HTMLHeadingElement = document.createElement("h2");
+  title.id = "chord-settings-title";
+  title.textContent = "Keyboard playback";
+
+  const form: HTMLFormElement = document.createElement("form");
+  form.method = "dialog";
+  const label: HTMLLabelElement = document.createElement("label");
+  label.htmlFor = "keyboard-chord-select";
+  label.textContent = "Play";
+  const select: HTMLSelectElement = document.createElement("select");
+  select.id = "keyboard-chord-select";
+  select.className = "form-select";
+  const singleNoteOption: HTMLOptionElement = document.createElement("option");
+  singleNoteOption.value = "single-note";
+  singleNoteOption.textContent = "Single note";
+  select.append(singleNoteOption);
+  for (const chord of CHORDS) {
+    const option: HTMLOptionElement = document.createElement("option");
+    option.value = chord.id;
+    option.textContent = chord.name;
+    select.append(option);
+  }
+  label.append(select);
+
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "visualization-settings-actions";
+  const doneButton: HTMLButtonElement = document.createElement("button");
+  doneButton.type = "submit";
+  doneButton.value = "apply";
+  doneButton.className = "btn btn-primary";
+  doneButton.textContent = "Done";
+  actions.append(doneButton);
+
+  form.append(label, actions);
+  dialog.append(title, form);
+  button.addEventListener("click", (): void => {
+    dialog.returnValue = "";
+    dialog.showModal();
+  });
+  return { button, dialog, select, modeOutput };
 }
 
 /**
@@ -376,6 +449,7 @@ function createKeyboardControls(): KeyboardControlsView {
   form.className = "app-controls";
   const keyCountControl: KeyboardSizeControlView = createKeyboardSizeControl();
   const audioSourceControls: AudioSourceControlsView = createAudioSourceControls();
+  const chordSettings: ChordSettingsView = createChordSettings();
   const updateButton: HTMLButtonElement = document.createElement("button");
   updateButton.type = "submit";
   updateButton.className = "btn btn-primary";
@@ -386,6 +460,8 @@ function createKeyboardControls(): KeyboardControlsView {
     audioSourceControls.metaAudioMenu.element,
     audioSourceControls.customSourceButton,
     audioSourceControls.customSamplePanel.element,
+    chordSettings.button,
+    chordSettings.modeOutput,
     updateButton,
   );
   return {
@@ -397,6 +473,9 @@ function createKeyboardControls(): KeyboardControlsView {
     customSamplePanel: audioSourceControls.customSamplePanel.element,
     customSampleUrlInput: audioSourceControls.customSamplePanel.urlInput,
     loadCustomSamplesButton: audioSourceControls.customSamplePanel.loadButton,
+    chordDialog: chordSettings.dialog,
+    chordSelect: chordSettings.select,
+    chordModeOutput: chordSettings.modeOutput,
   };
 }
 
@@ -440,6 +519,7 @@ function createKeyboardScreen(
     status.soundStatus,
     status.frequencyOutput,
     keyboardContainer,
+    controls.chordDialog,
   );
   return {
     element,
@@ -562,7 +642,8 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       font-size: 0.8rem;
       min-width: 2.5rem;
     }
-    .visualization-settings-dialog {
+    .visualization-settings-dialog,
+    .chord-settings-dialog {
       border: 0;
       border-radius: 1rem;
       box-shadow: 0 18px 48px #29316a33;
@@ -571,10 +652,12 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       padding: 1.5rem;
       width: 26rem;
     }
-    .visualization-settings-dialog::backdrop {
+    .visualization-settings-dialog::backdrop,
+    .chord-settings-dialog::backdrop {
       background: #20233a66;
     }
-    .visualization-settings-dialog h2 {
+    .visualization-settings-dialog h2,
+    .chord-settings-dialog h2 {
       font-size: 1.25rem;
       margin: 0 0 1.25rem;
     }
@@ -592,6 +675,9 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       display: flex;
       justify-content: flex-end;
       margin-top: 1.25rem;
+    }
+    .chord-settings-dialog {
+      width: 24rem;
     }
     .app-visualizations {
       display: grid;
@@ -895,5 +981,8 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     soundStatus: keyboardScreen.soundStatus,
     frequencyOutput: keyboardScreen.frequencyOutput,
     keyboardContainer: keyboardScreen.keyboardContainer,
+    chordDialog: keyboardScreen.chordDialog,
+    chordSelect: keyboardScreen.chordSelect,
+    chordModeOutput: keyboardScreen.chordModeOutput,
   };
 }

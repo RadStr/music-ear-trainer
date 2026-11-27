@@ -39,19 +39,27 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.addInitScript(() => {
       // Observe frequencies sent to real oscillators without needing a microphone.
       window.__scheduledOscillators = [];
+      window.__stoppedOscillators = [];
       const NativeAudioContext = window.AudioContext;
       window.AudioContext = class extends NativeAudioContext {
         createOscillator() {
           const oscillator = super.createOscillator();
+          let scheduledFrequency;
           const setValueAtTime = oscillator.frequency.setValueAtTime.bind(
             oscillator.frequency,
           );
           oscillator.frequency.setValueAtTime = (value, time) => {
+            scheduledFrequency = value;
             window.__scheduledOscillators.push({
               type: oscillator.type,
               frequency: value,
             });
             return setValueAtTime(value, time);
+          };
+          const stop = oscillator.stop.bind(oscillator);
+          oscillator.stop = (...args) => {
+            window.__stoppedOscillators.push(scheduledFrequency);
+            return stop(...args);
           };
           return oscillator;
         }
@@ -135,6 +143,64 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
         `${note}: expected ${expectedFrequency} Hz, got ${captured[index].frequency} Hz`,
       );
     }
+
+    const chordButton = page.getByRole("button", { name: "Play chords" });
+    const chordDialog = page.getByRole("dialog", { name: "Keyboard playback" });
+    await chordButton.click();
+    assert.equal(await chordDialog.isVisible(), true);
+    const chordSelect = chordDialog.getByRole("combobox", { name: "Play" });
+    await chordSelect.selectOption("c-major");
+    await chordDialog.getByRole("button", { name: "Done" }).click();
+    assert.equal(await chordDialog.isVisible(), false);
+    const stoppedBeforeChord = await page.evaluate(
+      () => window.__stoppedOscillators.length,
+    );
+    await keyboard.getByRole("button", { name: "D4", exact: true }).click();
+    const chordFrequencies = await page.evaluate(() =>
+      window.__scheduledOscillators.slice(-3).map((oscillator) => oscillator.frequency),
+    );
+    assert.equal(chordFrequencies.length, 3);
+    assert.deepEqual(
+      chordFrequencies.map((frequency) => Math.round(frequency * 100) / 100),
+      [293.66, 369.99, 440],
+    );
+    const releasedChordVoices = await page.evaluate(() =>
+      window.__stoppedOscillators.slice(-3),
+    );
+    const stoppedAfterChord = await page.evaluate(
+      () => window.__stoppedOscillators.length,
+    );
+    assert.equal(stoppedAfterChord, stoppedBeforeChord + 3);
+    assert.deepEqual(
+      releasedChordVoices.map((frequency) => Math.round(frequency * 100) / 100),
+      [293.66, 369.99, 440],
+    );
+    assert.equal(await page.locator(".app-controls output").textContent(), "C major triad");
+
+    await chordButton.click();
+    await chordSelect.selectOption("single-note");
+    await chordDialog.getByRole("button", { name: "Done" }).click();
+    const scheduledBeforeSingleNote = await page.evaluate(
+      () => window.__scheduledOscillators.length,
+    );
+    const stoppedBeforeSingleNote = await page.evaluate(
+      () => window.__stoppedOscillators.length,
+    );
+    await keyboard.getByRole("button", { name: "D4", exact: true }).click();
+    const singleNotePlayback = await page.evaluate(() => ({
+      frequencies: window.__scheduledOscillators.map((oscillator) => oscillator.frequency),
+      stoppedCount: window.__stoppedOscillators.length,
+    }));
+    assert.equal(singleNotePlayback.frequencies.length, scheduledBeforeSingleNote + 1);
+    assert.equal(singleNotePlayback.stoppedCount, stoppedBeforeSingleNote + 1);
+    const singleNoteFrequency =
+      singleNotePlayback.frequencies[singleNotePlayback.frequencies.length - 1];
+    assert.ok(
+      Math.abs(singleNoteFrequency - 293.6647679174076) < 1e-9,
+      "single-note mode should play only the pressed key",
+    );
+    assert.equal(await page.locator(".app-controls output").textContent(), "Single note");
+
     const c4Key = keyboard.getByRole("button", { name: "C4", exact: true });
     await c4Key.hover();
     await page.mouse.down();

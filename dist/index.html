@@ -432,6 +432,45 @@
     }
   };
 
+  // games/pitchGameData.ts
+  var NOTE_PITCH_CLASSES = {
+    C: 0,
+    "C#": 1,
+    Db: 1,
+    D: 2,
+    "D#": 3,
+    Eb: 3,
+    E: 4,
+    F: 5,
+    "F#": 6,
+    Gb: 6,
+    G: 7,
+    "G#": 8,
+    Ab: 8,
+    A: 9,
+    "A#": 10,
+    Bb: 10,
+    B: 11
+  };
+  var CHORDS = [
+    {
+      id: "c-major",
+      name: "C major triad",
+      notes: ["C", "E", "G"],
+      description: "A major triad built from the root, major third, and perfect fifth.",
+      examples: "C major appears in countless pop songs and is often used as a home chord."
+    }
+  ];
+  var SCALES = [
+    {
+      id: "c-major",
+      name: "C major scale",
+      notes: ["C", "D", "E", "F", "G", "A", "B"],
+      description: "A seven-note scale with the interval pattern whole, whole, half, whole, whole, whole, half.",
+      examples: "The white keys from C to the next C form the C major scale."
+    }
+  ];
+
   // audio/sampleSource.ts
   var SampleSource = class {
     /**
@@ -696,6 +735,7 @@
       this.activeVoices = /* @__PURE__ */ new Map();
       this.activeNoteCounts = /* @__PURE__ */ new Map();
       this.selectedSource = "sine";
+      this.selectedChordId = "single-note";
       this.view = view;
       this.envelopeController = envelopeController2;
       this.metaAudioController = metaAudioController;
@@ -748,6 +788,18 @@
       this.view.form.addEventListener("submit", (event) => {
         event.preventDefault();
         this.renderSelectedKeyboard();
+      });
+      this.view.chordDialog.addEventListener("close", () => {
+        if (this.view.chordDialog.returnValue !== "apply") {
+          this.view.chordSelect.value = this.selectedChordId;
+          return;
+        }
+        this.selectedChordId = this.view.chordSelect.value;
+        const selectedOption = this.view.chordSelect.selectedOptions.item(0);
+        if (!selectedOption) {
+          throw new Error("The selected keyboard playback option is missing.");
+        }
+        this.view.chordModeOutput.textContent = selectedOption.textContent;
       });
       window.addEventListener("pointerup", (event) => {
         if (event.pointerType === "mouse") {
@@ -872,6 +924,10 @@
         this.drawVisualizations();
       });
     }
+    /**
+     * Validates the selected key count and connects keyboard input to playback.
+     * The keyboard's callbacks play and release the selected single note or chord.
+     */
     renderSelectedKeyboard() {
       const keyCount = this.view.keyCountInput.valueAsNumber;
       if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
@@ -887,7 +943,11 @@
             return;
           }
           this.activeVoices.get(midiNote)?.release();
-          const voice = this.playNote(midiNote, envelope);
+          const intervals = this.getSelectedChordIntervals();
+          const voice = this.playNotes(
+            intervals.map((interval) => midiNote + interval),
+            envelope
+          );
           this.activeVoices.set(midiNote, voice);
         },
         onRelease: (midiNote) => this.releaseVoice(midiNote),
@@ -899,6 +959,44 @@
           this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
         }
       });
+    }
+    getSelectedChordIntervals() {
+      if (this.selectedChordId === "single-note") {
+        return [0];
+      }
+      const chord = CHORDS.find(
+        (candidate) => candidate.id === this.selectedChordId
+      );
+      if (!chord) {
+        throw new Error(`Unsupported keyboard chord: ${this.selectedChordId}`);
+      }
+      const rootName = chord.notes[0];
+      const rootPitchClass = rootName === void 0 ? void 0 : NOTE_PITCH_CLASSES[rootName];
+      if (rootPitchClass === void 0) {
+        throw new Error(`Unsupported root note in ${chord.name}.`);
+      }
+      return chord.notes.map((note) => {
+        const pitchClass = NOTE_PITCH_CLASSES[note];
+        if (pitchClass === void 0) {
+          throw new Error(`Unsupported note in ${chord.name}: ${note}`);
+        }
+        return (pitchClass - rootPitchClass + 12) % 12;
+      });
+    }
+    playNotes(midiNotes, envelope) {
+      const voices = midiNotes.map(
+        (midiNote) => this.playNote(midiNote, envelope)
+      );
+      return {
+        ready: Promise.allSettled(
+          voices.map((voice) => voice.ready)
+        ).then(() => void 0),
+        release: () => {
+          for (const voice of voices) {
+            voice.release();
+          }
+        }
+      };
     }
     midiToFrequency(midiNote) {
       return 440 * 2 ** ((midiNote - 69) / 12);
@@ -1034,25 +1132,6 @@
     decay: 0,
     sustain: 1,
     release: 0.03
-  };
-  var NOTE_PITCH_CLASSES = {
-    C: 0,
-    "C#": 1,
-    Db: 1,
-    D: 2,
-    "D#": 3,
-    Eb: 3,
-    E: 4,
-    F: 5,
-    "F#": 6,
-    Gb: 6,
-    G: 7,
-    "G#": 8,
-    Ab: 8,
-    A: 9,
-    "A#": 10,
-    Bb: 10,
-    B: 11
   };
   var PitchIdentificationController = class {
     /**
@@ -1592,26 +1671,6 @@
       this.keyboardVoices.clear();
     }
   };
-
-  // games/pitchGameData.ts
-  var CHORDS = [
-    {
-      id: "c-major",
-      name: "C major triad",
-      notes: ["C", "E", "G"],
-      description: "A major triad built from the root, major third, and perfect fifth.",
-      examples: "C major appears in countless pop songs and is often used as a home chord."
-    }
-  ];
-  var SCALES = [
-    {
-      id: "c-major",
-      name: "C major scale",
-      notes: ["C", "D", "E", "F", "G", "A", "B"],
-      description: "A seven-note scale with the interval pattern whole, whole, half, whole, whole, whole, half.",
-      examples: "The white keys from C to the next C form the C major scale."
-    }
-  ];
 
   // games/pitchIdentificationView.ts
   function createPitchIdentificationView(kind, title, instructions, patterns) {
@@ -2770,6 +2829,58 @@
     button.addEventListener("click", () => dialog.showModal());
     return { button, dialog, audioWaveCheckbox, playedKeysCheckbox };
   }
+  function createChordSettings() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-outline-secondary";
+    button.textContent = "Play chords";
+    button.setAttribute("aria-haspopup", "dialog");
+    const modeOutput = document.createElement("output");
+    modeOutput.setAttribute("aria-live", "polite");
+    modeOutput.textContent = "Single note";
+    const dialog = document.createElement("dialog");
+    dialog.id = "chord-settings-dialog";
+    dialog.className = "chord-settings-dialog";
+    dialog.setAttribute("aria-labelledby", "chord-settings-title");
+    button.setAttribute("aria-controls", dialog.id);
+    const title = document.createElement("h2");
+    title.id = "chord-settings-title";
+    title.textContent = "Keyboard playback";
+    const form = document.createElement("form");
+    form.method = "dialog";
+    const label = document.createElement("label");
+    label.htmlFor = "keyboard-chord-select";
+    label.textContent = "Play";
+    const select = document.createElement("select");
+    select.id = "keyboard-chord-select";
+    select.className = "form-select";
+    const singleNoteOption = document.createElement("option");
+    singleNoteOption.value = "single-note";
+    singleNoteOption.textContent = "Single note";
+    select.append(singleNoteOption);
+    for (const chord of CHORDS) {
+      const option = document.createElement("option");
+      option.value = chord.id;
+      option.textContent = chord.name;
+      select.append(option);
+    }
+    label.append(select);
+    const actions = document.createElement("div");
+    actions.className = "visualization-settings-actions";
+    const doneButton = document.createElement("button");
+    doneButton.type = "submit";
+    doneButton.value = "apply";
+    doneButton.className = "btn btn-primary";
+    doneButton.textContent = "Done";
+    actions.append(doneButton);
+    form.append(label, actions);
+    dialog.append(title, form);
+    button.addEventListener("click", () => {
+      dialog.returnValue = "";
+      dialog.showModal();
+    });
+    return { button, dialog, select, modeOutput };
+  }
   function createAppHeader() {
     const element = document.createElement("header");
     element.className = "app-header";
@@ -2924,6 +3035,7 @@
     form.className = "app-controls";
     const keyCountControl = createKeyboardSizeControl();
     const audioSourceControls = createAudioSourceControls();
+    const chordSettings = createChordSettings();
     const updateButton = document.createElement("button");
     updateButton.type = "submit";
     updateButton.className = "btn btn-primary";
@@ -2934,6 +3046,8 @@
       audioSourceControls.metaAudioMenu.element,
       audioSourceControls.customSourceButton,
       audioSourceControls.customSamplePanel.element,
+      chordSettings.button,
+      chordSettings.modeOutput,
       updateButton
     );
     return {
@@ -2944,7 +3058,10 @@
       customSourceButton: audioSourceControls.customSourceButton,
       customSamplePanel: audioSourceControls.customSamplePanel.element,
       customSampleUrlInput: audioSourceControls.customSamplePanel.urlInput,
-      loadCustomSamplesButton: audioSourceControls.customSamplePanel.loadButton
+      loadCustomSamplesButton: audioSourceControls.customSamplePanel.loadButton,
+      chordDialog: chordSettings.dialog,
+      chordSelect: chordSettings.select,
+      chordModeOutput: chordSettings.modeOutput
     };
   }
   function createKeyboardStatus() {
@@ -2975,7 +3092,8 @@
       status.instructions,
       status.soundStatus,
       status.frequencyOutput,
-      keyboardContainer
+      keyboardContainer,
+      controls.chordDialog
     );
     return {
       element,
@@ -3089,7 +3207,8 @@
       font-size: 0.8rem;
       min-width: 2.5rem;
     }
-    .visualization-settings-dialog {
+    .visualization-settings-dialog,
+    .chord-settings-dialog {
       border: 0;
       border-radius: 1rem;
       box-shadow: 0 18px 48px #29316a33;
@@ -3098,10 +3217,12 @@
       padding: 1.5rem;
       width: 26rem;
     }
-    .visualization-settings-dialog::backdrop {
+    .visualization-settings-dialog::backdrop,
+    .chord-settings-dialog::backdrop {
       background: #20233a66;
     }
-    .visualization-settings-dialog h2 {
+    .visualization-settings-dialog h2,
+    .chord-settings-dialog h2 {
       font-size: 1.25rem;
       margin: 0 0 1.25rem;
     }
@@ -3119,6 +3240,9 @@
       display: flex;
       justify-content: flex-end;
       margin-top: 1.25rem;
+    }
+    .chord-settings-dialog {
+      width: 24rem;
     }
     .app-visualizations {
       display: grid;
@@ -3418,7 +3542,10 @@
       loadCustomSamplesButton: keyboardScreen.loadCustomSamplesButton,
       soundStatus: keyboardScreen.soundStatus,
       frequencyOutput: keyboardScreen.frequencyOutput,
-      keyboardContainer: keyboardScreen.keyboardContainer
+      keyboardContainer: keyboardScreen.keyboardContainer,
+      chordDialog: keyboardScreen.chordDialog,
+      chordSelect: keyboardScreen.chordSelect,
+      chordModeOutput: keyboardScreen.chordModeOutput
     };
   }
 

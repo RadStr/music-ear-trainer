@@ -10,11 +10,18 @@ import { playSquare } from "../audio/playSquare";
 import type { Envelope, PlayMethod, PlayingAudio } from "../audio/types";
 import { AudioWaveVisualization } from "../audio-visualization/audio-wave/audio-wave-visualization";
 import { PlayedKeysVisualization } from "../audio-visualization/played-keys/played-keys-visualization";
+import { CHORDS, NOTE_PITCH_CLASSES } from "../games/pitchGameData";
 import type { AppView } from "../views/appView";
 import { renderKeyboard } from "../keyboard";
 import { CustomAudioController } from "./customAudioController";
 import { EnvelopeController } from "./envelopeController";
 import { META_INSTRUMENTS, MetaAudioController } from "./metaAudioController";
+
+type ChordSelection = "single-note" | (typeof CHORDS)[number]["id"];
+
+function isChordSelection(value: string): value is ChordSelection {
+  return value === "single-note" || CHORDS.some((chord): boolean => chord.id === value);
+}
 
 interface VisualizationControl {
   readonly checkbox: HTMLInputElement;
@@ -34,6 +41,7 @@ export class AppController {
   private readonly visualizations: readonly VisualizationControl[];
   private visualizationFrame: number | undefined;
   private selectedSource: string = "sine";
+  private selectedChordId: ChordSelection = "single-note";
 
   /**
    * Creates the app controller and wires keyboard, source, volume, and lifecycle controls.
@@ -102,6 +110,23 @@ export class AppController {
     this.view.form.addEventListener("submit", (event: SubmitEvent): void => {
       event.preventDefault();
       this.renderSelectedKeyboard();
+    });
+    this.view.chordDialog.addEventListener("close", (): void => {
+      if (this.view.chordDialog.returnValue !== "apply") {
+        this.view.chordSelect.value = this.selectedChordId;
+        return;
+      }
+      const selectedChordId: string = this.view.chordSelect.value;
+      if (!isChordSelection(selectedChordId)) {
+        throw new Error(`Unsupported keyboard playback selection: ${selectedChordId}`);
+      }
+      const selectedOption: HTMLOptionElement | null =
+        this.view.chordSelect.selectedOptions.item(0);
+      if (!selectedOption) {
+        throw new Error("The selected keyboard playback option is missing.");
+      }
+      this.selectedChordId = selectedChordId;
+      this.view.chordModeOutput.textContent = selectedOption.textContent;
     });
     window.addEventListener("pointerup", (event: PointerEvent): void => {
       if (event.pointerType === "mouse") {
@@ -234,6 +259,10 @@ export class AppController {
     });
   }
 
+  /**
+   * Validates the selected key count and connects keyboard input to playback.
+   * The keyboard's callbacks play and release the selected single note or chord.
+   */
   private renderSelectedKeyboard(): void {
     const keyCount: number = this.view.keyCountInput.valueAsNumber;
     if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
@@ -250,7 +279,11 @@ export class AppController {
           return;
         }
         this.activeVoices.get(midiNote)?.release();
-        const voice: PlayingAudio = this.playNote(midiNote, envelope);
+        const intervals: readonly number[] = this.getSelectedChordIntervals();
+        const voice: PlayingAudio = this.playNotes(
+          intervals.map((interval: number): number => midiNote + interval),
+          envelope,
+        );
         this.activeVoices.set(midiNote, voice);
       },
       onRelease: (midiNote: number): void => this.releaseVoice(midiNote),
@@ -262,6 +295,47 @@ export class AppController {
         this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
       },
     });
+  }
+
+  private getSelectedChordIntervals(): readonly number[] {
+    if (this.selectedChordId === "single-note") {
+      return [0];
+    }
+    const chord = CHORDS.find(
+      (candidate): boolean => candidate.id === this.selectedChordId,
+    );
+    if (!chord) {
+      throw new Error(`Unsupported keyboard chord: ${this.selectedChordId}`);
+    }
+    const rootName: string | undefined = chord.notes[0];
+    const rootPitchClass: number | undefined =
+      rootName === undefined ? undefined : NOTE_PITCH_CLASSES[rootName];
+    if (rootPitchClass === undefined) {
+      throw new Error(`Unsupported root note in ${chord.name}.`);
+    }
+    return chord.notes.map((note: string): number => {
+      const pitchClass: number | undefined = NOTE_PITCH_CLASSES[note];
+      if (pitchClass === undefined) {
+        throw new Error(`Unsupported note in ${chord.name}: ${note}`);
+      }
+      return (pitchClass - rootPitchClass + 12) % 12;
+    });
+  }
+
+  private playNotes(midiNotes: readonly number[], envelope: Envelope): PlayingAudio {
+    const voices: PlayingAudio[] = midiNotes.map(
+      (midiNote: number): PlayingAudio => this.playNote(midiNote, envelope),
+    );
+    return {
+      ready: Promise.allSettled(
+        voices.map((voice: PlayingAudio): Promise<void> => voice.ready),
+      ).then((): void => undefined),
+      release: (): void => {
+        for (const voice of voices) {
+          voice.release();
+        }
+      },
+    };
   }
 
   private midiToFrequency(midiNote: number): number {
