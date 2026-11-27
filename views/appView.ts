@@ -11,6 +11,7 @@ export interface AppView {
   readonly volumeOutput: HTMLOutputElement;
   readonly visualizationSettingsButton: HTMLButtonElement;
   readonly visualizationDialog: HTMLDialogElement;
+  readonly keyboardSettingsDialog: HTMLDialogElement;
   readonly audioWaveCheckbox: HTMLInputElement;
   readonly playedKeysCheckbox: HTMLInputElement;
   readonly sineIntersectionCheckbox: HTMLInputElement;
@@ -64,6 +65,7 @@ interface AppHeaderView extends VisualizationSettingsView {
   readonly element: HTMLElement;
   readonly volumeInput: HTMLInputElement;
   readonly volumeOutput: HTMLOutputElement;
+  readonly gameNavigation: GameNavigationView;
 }
 
 interface GameNavigationView {
@@ -98,6 +100,8 @@ interface AudioSourceControlsView {
 }
 
 interface KeyboardControlsView {
+  readonly settingsButton: HTMLButtonElement;
+  readonly settingsDialog: HTMLDialogElement;
   readonly form: HTMLFormElement;
   readonly keyCountInput: HTMLInputElement;
   readonly sourceSelect: HTMLSelectElement;
@@ -328,20 +332,24 @@ function createChordSettings(): ChordSettingsView {
 }
 
 /**
- * Creates the application header and its volume and visualization settings controls.
+ * Creates the application header with volume, game, and visualization controls.
  * @returns Header elements and controls used by the app view and controller.
  */
-function createAppHeader(): AppHeaderView {
+function createAppHeader(gameNavigation: GameNavigationView): AppHeaderView {
   const element: HTMLElement = document.createElement("header");
   element.className = "app-header";
   const brand: HTMLDivElement = createBrand();
   const volumeControl: VolumeControlView = createVolumeControl();
   const visualizationSettings: VisualizationSettingsView = createVisualizationSettings();
-  element.append(brand, volumeControl.element, visualizationSettings.button);
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "app-header-actions";
+  actions.append(gameNavigation.element, visualizationSettings.button);
+  element.append(brand, volumeControl.element, actions);
   return {
     element,
     volumeInput: volumeControl.input,
     volumeOutput: volumeControl.output,
+    gameNavigation,
     ...visualizationSettings,
   };
 }
@@ -516,7 +524,39 @@ function createKeyboardControls(): KeyboardControlsView {
     chordSettings.modeOutput,
     updateButton,
   );
+  const settingsButton: HTMLButtonElement = document.createElement("button");
+  settingsButton.type = "button";
+  settingsButton.className = "btn btn-outline-secondary";
+  settingsButton.setAttribute("aria-haspopup", "dialog");
+  settingsButton.setAttribute("aria-controls", "keyboard-settings-dialog");
+  const settingsIcon: HTMLSpanElement = document.createElement("span");
+  settingsIcon.setAttribute("aria-hidden", "true");
+  settingsIcon.textContent = "⚙ ";
+  settingsButton.append(settingsIcon, document.createTextNode("Keyboard settings"));
+
+  const settingsDialog: HTMLDialogElement = document.createElement("dialog");
+  settingsDialog.id = "keyboard-settings-dialog";
+  settingsDialog.className = "keyboard-settings-dialog";
+  settingsDialog.setAttribute("aria-labelledby", "keyboard-settings-title");
+  const title: HTMLHeadingElement = document.createElement("h2");
+  title.id = "keyboard-settings-title";
+  title.textContent = "Keyboard settings";
+  const closeForm: HTMLFormElement = document.createElement("form");
+  closeForm.method = "dialog";
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "visualization-settings-actions";
+  const doneButton: HTMLButtonElement = document.createElement("button");
+  doneButton.type = "submit";
+  doneButton.className = "btn btn-primary";
+  doneButton.textContent = "Done";
+  actions.append(doneButton);
+  closeForm.append(actions);
+  settingsDialog.append(title, form, closeForm, chordSettings.dialog);
+  settingsButton.addEventListener("click", (): void => settingsDialog.showModal());
+
   return {
+    settingsButton,
+    settingsDialog,
     form,
     keyCountInput: keyCountControl.input,
     sourceSelect: audioSourceControls.sourceSelect,
@@ -546,14 +586,12 @@ function createKeyboardStatus(): KeyboardStatusView {
 }
 
 /**
- * Creates the keyboard screen and combines its controls, status, and game navigation.
+ * Creates the keyboard screen and combines its settings, status, and keyboard.
  * @param envelopeView The envelope control view to include.
- * @param gameNavigation The navigation for the available learning games.
  * @returns The keyboard screen and its controller-facing elements.
  */
 function createKeyboardScreen(
   envelopeView: EnvelopeView,
-  gameNavigation: GameNavigationView,
 ): KeyboardScreenView {
   const element: HTMLElement = document.createElement("section");
   element.className = "app-card";
@@ -563,15 +601,14 @@ function createKeyboardScreen(
   const status: KeyboardStatusView = createKeyboardStatus();
   const keyboardContainer: HTMLDivElement = document.createElement("div");
   element.append(
-    gameNavigation.element,
     heading,
-    controls.form,
+    controls.settingsButton,
     envelopeView.element,
     status.instructions,
     status.soundStatus,
     status.frequencyOutput,
     keyboardContainer,
-    controls.chordDialog,
+    controls.settingsDialog,
   );
   return {
     element,
@@ -674,6 +711,11 @@ function createStaticIntersectionPanel(): StaticIntersectionPanelView {
  * @param envelopeView The envelope control view to include in the application.
  * @returns The application view elements and controls.
  */
+/**
+ * Builds the application UI and exposes its interactive controls.
+ * @param envelopeView The envelope editor used by the keyboard screen.
+ * @returns The application elements and controller-facing controls.
+ */
 export function createAppView(envelopeView: EnvelopeView): AppView {
   const styles: HTMLStyleElement = createStyleElement();
   styles.textContent = `
@@ -698,6 +740,13 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       gap: 1rem;
       justify-content: space-between;
       margin-bottom: 1.5rem;
+    }
+    .app-header-actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      justify-content: flex-end;
     }
     .app-brand {
       display: grid;
@@ -739,7 +788,9 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       min-width: 2.5rem;
     }
     .visualization-settings-dialog,
-    .chord-settings-dialog {
+    .chord-settings-dialog,
+    .keyboard-settings-dialog,
+    .envelope-editor-dialog {
       border: 0;
       border-radius: 1rem;
       box-shadow: 0 18px 48px #29316a33;
@@ -749,11 +800,15 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       width: 26rem;
     }
     .visualization-settings-dialog::backdrop,
-    .chord-settings-dialog::backdrop {
+    .chord-settings-dialog::backdrop,
+    .keyboard-settings-dialog::backdrop,
+    .envelope-editor-dialog::backdrop {
       background: #20233a66;
     }
     .visualization-settings-dialog h2,
-    .chord-settings-dialog h2 {
+    .chord-settings-dialog h2,
+    .keyboard-settings-dialog h2,
+    .envelope-editor-dialog h2 {
       font-size: 1.25rem;
       margin: 0 0 1.25rem;
     }
@@ -774,6 +829,27 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     }
     .chord-settings-dialog {
       width: 24rem;
+    }
+    .keyboard-settings-dialog {
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      width: min(52rem, calc(100vw - 2rem));
+    }
+    .keyboard-settings-dialog .app-controls {
+      border: 0;
+      margin: 0;
+      padding: 0;
+    }
+    .keyboard-settings-dialog .app-controls > .btn-primary {
+      align-self: end;
+    }
+    .envelope-editor-dialog {
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      width: min(48rem, calc(100vw - 2rem));
+    }
+    .envelope-editor-dialog form {
+      margin: 0;
     }
     .app-visualizations {
       display: grid;
@@ -822,12 +898,9 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       padding: clamp(1.25rem, 3vw, 2.25rem);
     }
     .game-navigation {
-      border-bottom: 1px solid #ececf3;
       display: flex;
       flex-wrap: wrap;
       gap: 0.55rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1.25rem;
     }
     .game-navigation button {
       border-radius: 999px;
@@ -1051,10 +1124,9 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
   document.head.append(styles);
 
   const app: HTMLElement = createAppRoot();
-  const header: AppHeaderView = createAppHeader();
-
   const gameNavigation: GameNavigationView = createGameNavigation();
-  const keyboardScreen: KeyboardScreenView = createKeyboardScreen(envelopeView, gameNavigation);
+  const header: AppHeaderView = createAppHeader(gameNavigation);
+  const keyboardScreen: KeyboardScreenView = createKeyboardScreen(envelopeView);
   const visualizations: AppVisualizationsView = createVisualizations();
   app.append(header.element, keyboardScreen.element, visualizations.element, header.dialog);
   document.body.replaceChildren(app);
@@ -1062,13 +1134,14 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
   return {
     element: app,
     keyboardScreen: keyboardScreen.element,
-    gameButton: gameNavigation.gameButton,
-    chordGameButton: gameNavigation.chordGameButton,
-    scaleGameButton: gameNavigation.scaleGameButton,
+    gameButton: header.gameNavigation.gameButton,
+    chordGameButton: header.gameNavigation.chordGameButton,
+    scaleGameButton: header.gameNavigation.scaleGameButton,
     volumeInput: header.volumeInput,
     volumeOutput: header.volumeOutput,
     visualizationSettingsButton: header.button,
     visualizationDialog: header.dialog,
+    keyboardSettingsDialog: keyboardScreen.settingsDialog,
     audioWaveCheckbox: header.audioWaveCheckbox,
     playedKeysCheckbox: header.playedKeysCheckbox,
     sineIntersectionCheckbox: header.sineIntersectionCheckbox,

@@ -72,3 +72,10 @@ rename keyboard-input to musical-keyboard-input
 Also improve the Finish guess button - Make the text black and not white
 
 27-11-26:22-40-56 Ok that is wrong, it should be defined only once and reused in both
+
+27-11-26:23-47-54
+Lets clean up the UI/UX. So there are couple of issues
+1) On the musical keyboard page (the main page)
+a) Edit envelope button should open a dialog instead of adding a new section to the page.
+b) Put the game buttons at the top next to the visualization settings
+c) When it comes to the settings of the keyboard (number of keys and so on), for now hide it all into a dialog that is opened by a new button that has the cog signializing settings.

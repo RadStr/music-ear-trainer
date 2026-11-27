@@ -69,6 +69,13 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.goto(`http://127.0.0.1:${address.port}/`);
     await page.getByRole("heading", { name: "Musical keyboard" }).waitFor();
     assert.equal(await page.locator("#guess-feedback-styles").count(), 1);
+    const headerActions = page.locator(".app-header-actions");
+    assert.equal(await headerActions.evaluate((element) => getComputedStyle(element).display), "flex");
+    assert.equal(
+      await headerActions.getByRole("button").count(),
+      4,
+      "game buttons should sit beside visualization settings in the header",
+    );
     const settingsButton = page.getByRole("button", { name: "Visualization settings" });
     const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
@@ -81,6 +88,28 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       /Play one or more notes/,
     );
     assert.equal(await settingsDialog.isVisible(), false);
+    const keyboardSettingsButton = page.getByRole("button", { name: "Keyboard settings" });
+    const keyboardSettingsDialog = page.getByRole("dialog", { name: "Keyboard settings" });
+    assert.equal(await keyboardSettingsDialog.isVisible(), false);
+    assert.equal(await page.locator("#key-count").isVisible(), false);
+    await keyboardSettingsButton.click();
+    assert.equal(await keyboardSettingsDialog.isVisible(), true);
+    assert.equal(await keyboardSettingsDialog.locator("#key-count").isVisible(), true);
+    assert.equal(
+      await keyboardSettingsDialog.getByRole("button", { name: "Play chords" }).isVisible(),
+      true,
+    );
+    await keyboardSettingsDialog.getByRole("button", { name: "Done" }).click();
+    assert.equal(await keyboardSettingsDialog.isVisible(), false);
+
+    const envelopeDialog = page.getByRole("dialog", { name: "ADSR envelope" });
+    assert.equal(await envelopeDialog.isVisible(), false);
+    await page.getByRole("button", { name: "Edit envelope" }).click();
+    assert.equal(await envelopeDialog.isVisible(), true);
+    assert.equal(await envelopeDialog.locator("#envelope-controls").isVisible(), true);
+    await envelopeDialog.getByRole("button", { name: "Done" }).click();
+    assert.equal(await envelopeDialog.isVisible(), false);
+
     await settingsButton.click();
     assert.equal(await settingsDialog.isVisible(), true);
     const audioWaveCheckbox = settingsDialog.getByRole("checkbox", { name: "Audio wave" });
@@ -197,6 +226,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const scheduledBeforeFocusedField = await page.evaluate(
       () => window.__scheduledOscillators.length,
     );
+    await keyboardSettingsButton.click();
     await page.locator("#key-count").focus();
     await page.keyboard.press("a");
     assert.equal(
@@ -206,6 +236,8 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     );
 
     await page.locator("#key-count").blur();
+    await keyboardSettingsDialog.getByRole("button", { name: "Update keyboard" }).click();
+    assert.equal(await keyboardSettingsDialog.isVisible(), false);
     await page.keyboard.down("a");
     await c3Key.hover();
     await page.mouse.down();
@@ -265,12 +297,14 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
 
     const chordButton = page.getByRole("button", { name: "Play chords" });
     const chordDialog = page.getByRole("dialog", { name: "Keyboard playback" });
+    await keyboardSettingsButton.click();
     await chordButton.click();
     assert.equal(await chordDialog.isVisible(), true);
     const chordSelect = chordDialog.getByRole("combobox", { name: "Play" });
     await chordSelect.selectOption("c-major");
     await chordDialog.getByRole("button", { name: "Done" }).click();
     assert.equal(await chordDialog.isVisible(), false);
+    await keyboardSettingsDialog.getByRole("button", { name: "Done" }).click();
     const stoppedBeforeChord = await page.evaluate(
       () => window.__stoppedOscillators.length,
     );
@@ -328,9 +362,11 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     );
     assert.equal(await page.locator(".app-controls output").textContent(), "C major triad");
 
+    await keyboardSettingsButton.click();
     await chordButton.click();
     await chordSelect.selectOption("single-note");
     await chordDialog.getByRole("button", { name: "Done" }).click();
+    await keyboardSettingsDialog.getByRole("button", { name: "Done" }).click();
     const scheduledBeforeSingleNote = await page.evaluate(
       () => window.__scheduledOscillators.length,
     );

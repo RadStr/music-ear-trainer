@@ -141,7 +141,9 @@ export class AppController {
 
     this.view.form.addEventListener("submit", (event: SubmitEvent): void => {
       event.preventDefault();
-      this.renderSelectedKeyboard();
+      if (this.renderSelectedKeyboard()) {
+        this.view.keyboardSettingsDialog.close();
+      }
     });
     this.view.chordDialog.addEventListener("close", (): void => {
       if (this.view.chordDialog.returnValue !== "apply") {
@@ -280,13 +282,14 @@ export class AppController {
   /**
    * Validates the selected key count and connects keyboard input to playback.
    * The keyboard's callbacks play and release the selected single note or chord.
+   * @returns Whether the keyboard was successfully rendered.
    */
-  private renderSelectedKeyboard(): void {
+  private renderSelectedKeyboard(): boolean {
     const keyCount: number = this.view.keyCountInput.valueAsNumber;
     if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
       this.view.keyCountInput.setCustomValidity("Enter a whole number from 1 to 88.");
       this.view.keyCountInput.reportValidity();
-      return;
+      return false;
     }
 
     this.view.keyCountInput.setCustomValidity("");
@@ -315,6 +318,7 @@ export class AppController {
         this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
       },
     }, 21, this.keyboardInputs);
+    return true;
   }
 
   private getSelectedChordIntervals(): readonly number[] {

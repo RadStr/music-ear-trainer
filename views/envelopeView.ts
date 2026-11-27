@@ -117,13 +117,12 @@ export function createEnvelopeView(): EnvelopeView {
   toggleButton.type = "button";
   toggleButton.className = "btn btn-outline-secondary";
   toggleButton.textContent = "Edit envelope";
-  toggleButton.setAttribute("aria-expanded", "false");
-  toggleButton.setAttribute("aria-controls", "envelope-controls");
+  toggleButton.setAttribute("aria-haspopup", "dialog");
+  toggleButton.setAttribute("aria-controls", "envelope-editor-dialog");
 
   const controls: HTMLFieldSetElement = document.createElement("fieldset");
   controls.className = "envelope-controls";
   controls.id = "envelope-controls";
-  controls.hidden = true;
   const legend: HTMLLegendElement = document.createElement("legend");
   legend.textContent = "ADSR envelope";
   const controlGrid: HTMLDivElement = document.createElement("div");
@@ -234,7 +233,26 @@ export function createEnvelopeView(): EnvelopeView {
     "Preview includes a 1-second sustain hold; during playback, sustain lasts while the mouse is held.";
   figure.append(chart, caption);
   controls.append(figure);
-  element.append(toggleButton, controls);
+
+  const dialog: HTMLDialogElement = document.createElement("dialog");
+  dialog.id = "envelope-editor-dialog";
+  dialog.className = "envelope-editor-dialog";
+  dialog.setAttribute("aria-labelledby", "envelope-editor-title");
+  const title: HTMLHeadingElement = document.createElement("h2");
+  title.id = "envelope-editor-title";
+  title.textContent = "ADSR envelope";
+  const form: HTMLFormElement = document.createElement("form");
+  form.method = "dialog";
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "visualization-settings-actions";
+  const doneButton: HTMLButtonElement = document.createElement("button");
+  doneButton.type = "submit";
+  doneButton.className = "btn btn-primary";
+  doneButton.textContent = "Done";
+  actions.append(doneButton);
+  form.append(controls, actions);
+  dialog.append(title, form);
+  element.append(toggleButton, dialog);
 
   let changeHandler: (envelope: Envelope | undefined) => void = (): void => {};
 
@@ -381,10 +399,7 @@ export function createEnvelopeView(): EnvelopeView {
     "5",
   );
 
-  toggleButton.addEventListener("click", (_event: MouseEvent): void => {
-    controls.hidden = !controls.hidden;
-    toggleButton.setAttribute("aria-expanded", String(!controls.hidden));
-  });
+  toggleButton.addEventListener("click", (): void => dialog.showModal());
 
   updateChart();
 

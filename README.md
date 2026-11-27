@@ -12,6 +12,8 @@ Learning by Ear has two purposes: learning agentic coding and learning music the
 
 Play notes on a configurable 1–88-key keyboard with the mouse or computer keyboard, initially scrolled to C3. Use **A, W, S, E, D, F, T, G, Y, H, U, J, K** for C3–C4 and **X/C** to lower/raise the computer-keyboard octave. Choose a sine, square, or sawtooth waveform, a piano or guitar instrument, or your own sample directory; adjust the volume and note envelope to shape the sound. Use **Play chords** to choose a chord or return to single-note playback; pressing a key transposes the selected chord to that root.
 
+Use **Keyboard settings** to configure the key count, sound source, and chord playback; **Edit envelope** opens the envelope controls. Both controls appear in dialogs. The game buttons and **Visualization settings** are together in the page header.
+
 Use **Visualization settings** to show the mixed audio waveform, played keys, and one sine wave per note (**Sine intersection**, regardless of the selected sound source). **Static intersection** plots all active notes and shows their closest simple cycle-count ratio, such as 1:2:3; equal-tempered notes may only align approximately.
 
 ![Musical keyboard and sound controls](readme-images/playing.png)
