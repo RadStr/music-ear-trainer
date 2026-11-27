@@ -72,13 +72,28 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
     assert.equal(await page.locator("#played-keys-panel").isVisible(), true);
+    assert.equal(await page.locator("#sine-intersection-panel").isVisible(), true);
+    assert.equal(await page.locator("#static-intersection-panel").isVisible(), true);
+    assert.equal(await page.locator("#intersection-panel").count(), 0);
+    assert.match(
+      await page.locator("#static-intersection-explanation").textContent(),
+      /Play one or more notes/,
+    );
     assert.equal(await settingsDialog.isVisible(), false);
     await settingsButton.click();
     assert.equal(await settingsDialog.isVisible(), true);
     const audioWaveCheckbox = settingsDialog.getByRole("checkbox", { name: "Audio wave" });
     const playedKeysCheckbox = settingsDialog.getByRole("checkbox", { name: "Played keys" });
+    const sineIntersectionCheckbox = settingsDialog.getByRole("checkbox", {
+      name: "Sine intersection",
+    });
+    const staticIntersectionCheckbox = settingsDialog.getByRole("checkbox", {
+      name: "Static intersection",
+    });
     assert.equal(await audioWaveCheckbox.isChecked(), true);
     assert.equal(await playedKeysCheckbox.isChecked(), true);
+    assert.equal(await sineIntersectionCheckbox.isChecked(), true);
+    assert.equal(await staticIntersectionCheckbox.isChecked(), true);
     await audioWaveCheckbox.uncheck();
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);
     await audioWaveCheckbox.check();
@@ -175,6 +190,17 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       chordFrequencies.map((frequency) => Math.round(frequency * 100) / 100),
       [293.66, 369.99, 440],
     );
+    await page.waitForFunction(() => {
+      const explanation = document.querySelector("#static-intersection-explanation");
+      return explanation?.textContent?.includes("D4:") === true &&
+        explanation.textContent.includes("F♯4:") &&
+        explanation.textContent.includes("A4:");
+    });
+    const cycleExplanation = await page
+      .locator("#static-intersection-explanation")
+      .textContent();
+    assert.match(cycleExplanation, /Cycle ratio/);
+    assert.doesNotMatch(cycleExplanation, /seconds/);
     await page.mouse.up();
     for (const note of ["D4", "F♯4", "A4"]) {
       assert.equal(

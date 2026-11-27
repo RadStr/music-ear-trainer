@@ -427,6 +427,197 @@
     }
   }
 
+  // audio-visualization/note-wave-drawing.ts
+  var WAVE_COLOR = "#2878d0";
+  var LABEL_WIDTH = 48;
+  function drawNoteWaveforms(canvas, noteWaves) {
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Unable to get a 2D context for the note waveforms.");
+    }
+    const { width, height } = canvas;
+    context.clearRect(0, 0, width, height);
+    if (noteWaves.length === 0) {
+      context.beginPath();
+      context.moveTo(LABEL_WIDTH, height / 2);
+      context.lineTo(width, height / 2);
+      context.strokeStyle = WAVE_COLOR;
+      context.lineWidth = 2;
+      context.stroke();
+      return;
+    }
+    const rowHeight = height / noteWaves.length;
+    const graphWidth = Math.max(0, width - LABEL_WIDTH);
+    context.font = "12px sans-serif";
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+    context.lineWidth = 1;
+    for (const [rowIndex, noteWave] of noteWaves.entries()) {
+      const rowTop = rowIndex * rowHeight;
+      const centerY = rowTop + rowHeight / 2;
+      const amplitude = rowHeight * 0.4;
+      context.fillStyle = "#4a4b64";
+      context.fillText(midiNoteName(noteWave.midiNote), 2, centerY);
+      context.beginPath();
+      context.moveTo(LABEL_WIDTH, centerY);
+      context.lineTo(width, centerY);
+      context.strokeStyle = "#d8d9e3";
+      context.stroke();
+      if (noteWave.audioWave.length === 0) {
+        continue;
+      }
+      const lastSampleIndex = noteWave.audioWave.length - 1;
+      context.beginPath();
+      for (let index = 0; index <= lastSampleIndex; index += 1) {
+        const sample = noteWave.audioWave[index];
+        if (sample === void 0) {
+          throw new RangeError(`Audio waveform sample ${index} is unavailable.`);
+        }
+        const x = LABEL_WIDTH + index / Math.max(1, lastSampleIndex) * graphWidth;
+        const y = centerY - Math.max(-1, Math.min(1, sample)) * amplitude;
+        if (index === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+      context.strokeStyle = WAVE_COLOR;
+      context.lineWidth = 2;
+      context.stroke();
+    }
+  }
+
+  // audio-visualization/sine-intersection/sine-intersection-visualization.ts
+  var SAMPLE_COUNT = 1024;
+  var TIME_WINDOW_SECONDS = 0.04;
+  var SineIntersectionVisualization = class {
+    constructor(canvas) {
+      this.canvas = canvas;
+    }
+    /**
+     * Draws a sine wave for every active note, regardless of its playback source.
+     * @param playedNotes Active notes as MIDI note numbers.
+     * @param audioWave Mixed audio samples, unused by this visualization.
+     */
+    draw(playedNotes, _audioWave) {
+      const noteWaves = playedNotes.map(
+        (midiNote) => {
+          const frequency = 440 * 2 ** ((midiNote - 69) / 12);
+          const audioWave = new Float32Array(SAMPLE_COUNT);
+          for (let index = 0; index < SAMPLE_COUNT; index += 1) {
+            const time = index / (SAMPLE_COUNT - 1) * TIME_WINDOW_SECONDS;
+            audioWave[index] = Math.sin(2 * Math.PI * frequency * time);
+          }
+          return { midiNote, audioWave };
+        }
+      );
+      drawNoteWaveforms(this.canvas, noteWaves);
+    }
+  };
+
+  // audio-visualization/static-intersection/static-intersection-visualization.ts
+  var MAX_BASE_NOTE_CYCLES = 32;
+  var WAVE_COLORS = [
+    "#2878d0",
+    "#e47736",
+    "#8b5cc7",
+    "#31966b",
+    "#d34f70",
+    "#85722c"
+  ];
+  var StaticIntersectionVisualization = class {
+    constructor(canvas, explanation) {
+      this.canvas = canvas;
+      this.explanation = explanation;
+    }
+    /**
+     * Draws every active note and reports their closest simple cycle-count ratio.
+     * @param playedNotes Active notes as MIDI note numbers.
+     * @param audioWave Mixed audio samples, unused by this visualization.
+     */
+    draw(playedNotes, _audioWave) {
+      const notes = Array.from(new Set(playedNotes)).sort(
+        (first, second) => first - second
+      );
+      const context = this.canvas.getContext("2d");
+      if (!context) {
+        throw new Error("Unable to get a 2D context for the static intersection.");
+      }
+      context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      if (notes.length === 0) {
+        this.explanation.textContent = "Play one or more notes to compare their cycle counts.";
+        return;
+      }
+      const frequencies = notes.map(
+        (midiNote) => this.midiToFrequency(midiNote)
+      );
+      const alignment = this.findCycleAlignment(frequencies);
+      const baseFrequency = frequencies[0] ?? 1;
+      this.drawWaves(context, frequencies, alignment.baseNoteCycles, baseFrequency);
+      const noteCounts = notes.map((midiNote, index) => {
+        const cycleCount = alignment.cycleCounts[index] ?? 1;
+        const cycleLabel = cycleCount === 1 ? "cycle" : "cycles";
+        return `${midiNoteName(midiNote)}: ${cycleCount} ${cycleLabel}`;
+      }).join(", ");
+      const exactness = alignment.largestMismatch < 1e-6 ? "These cycle counts align exactly." : `This is the closest simple match within ${MAX_BASE_NOTE_CYCLES} cycles of the lowest note; equal-tempered notes may not align exactly.`;
+      this.explanation.textContent = `Cycle ratio ${alignment.cycleCounts.join(":")} (${noteCounts}). ${exactness}`;
+    }
+    midiToFrequency(midiNote) {
+      return 440 * 2 ** ((midiNote - 69) / 12);
+    }
+    findCycleAlignment(frequencies) {
+      const baseFrequency = frequencies[0] ?? 1;
+      let bestAlignment = {
+        cycleCounts: frequencies.map(() => 1),
+        baseNoteCycles: 1,
+        largestMismatch: Number.POSITIVE_INFINITY
+      };
+      for (let baseNoteCycles = 1; baseNoteCycles <= MAX_BASE_NOTE_CYCLES; baseNoteCycles += 1) {
+        const cycleCounts = frequencies.map(
+          (frequency) => Math.round(frequency / baseFrequency * baseNoteCycles)
+        );
+        let largestMismatch = 0;
+        for (let index = 0; index < frequencies.length; index += 1) {
+          const frequency = frequencies[index];
+          const cycleCount = cycleCounts[index];
+          if (frequency === void 0 || cycleCount === void 0) {
+            throw new RangeError(`Frequency ${index} is unavailable.`);
+          }
+          const expectedCycles = frequency / baseFrequency * baseNoteCycles;
+          largestMismatch = Math.max(largestMismatch, Math.abs(expectedCycles - cycleCount));
+        }
+        if (largestMismatch < bestAlignment.largestMismatch) {
+          bestAlignment = { cycleCounts, baseNoteCycles, largestMismatch };
+        }
+      }
+      return bestAlignment;
+    }
+    drawWaves(context, frequencies, baseNoteCycles, baseFrequency) {
+      const { width, height } = this.canvas;
+      const centerY = height / 2;
+      const amplitude = height * 0.38;
+      const sampleCount = 1024;
+      const displayDuration = baseNoteCycles / baseFrequency;
+      frequencies.forEach((frequency, waveIndex) => {
+        context.beginPath();
+        for (let index = 0; index < sampleCount; index += 1) {
+          const progress = index / (sampleCount - 1);
+          const time = progress * displayDuration;
+          const x = progress * width;
+          const y = centerY - Math.sin(2 * Math.PI * frequency * time) * amplitude;
+          if (index === 0) {
+            context.moveTo(x, y);
+          } else {
+            context.lineTo(x, y);
+          }
+        }
+        context.strokeStyle = WAVE_COLORS[waveIndex % WAVE_COLORS.length] ?? WAVE_COLORS[0] ?? "#2878d0";
+        context.lineWidth = 2;
+        context.stroke();
+      });
+    }
+  };
+
   // audio-visualization/played-keys/played-keys-visualization.ts
   var WHITE_PITCH_CLASSES2 = /* @__PURE__ */ new Set([0, 2, 4, 5, 7, 9, 11]);
   var PlayedKeysVisualization = class {
@@ -779,6 +970,13 @@
       this.customAudioController = customAudioController;
       this.audioWaveVisualization = new AudioWaveVisualization(this.view.audioWaveCanvas);
       this.playedKeysVisualization = new PlayedKeysVisualization(this.view.playedKeysCanvas);
+      this.sineIntersectionVisualization = new SineIntersectionVisualization(
+        this.view.sineIntersectionCanvas
+      );
+      this.staticIntersectionVisualization = new StaticIntersectionVisualization(
+        this.view.staticIntersectionCanvas,
+        this.view.staticIntersectionExplanation
+      );
       this.visualizations = [
         {
           checkbox: this.view.audioWaveCheckbox,
@@ -792,6 +990,20 @@
           panel: this.view.playedKeysPanel,
           draw: (playedNotes, audioWave) => {
             this.playedKeysVisualization.draw(playedNotes, audioWave);
+          }
+        },
+        {
+          checkbox: this.view.sineIntersectionCheckbox,
+          panel: this.view.sineIntersectionPanel,
+          draw: (playedNotes, audioWave) => {
+            this.sineIntersectionVisualization.draw(playedNotes, audioWave);
+          }
+        },
+        {
+          checkbox: this.view.staticIntersectionCheckbox,
+          panel: this.view.staticIntersectionPanel,
+          draw: (playedNotes, audioWave) => {
+            this.staticIntersectionVisualization.draw(playedNotes, audioWave);
           }
         }
       ];
@@ -2863,6 +3075,28 @@
     playedKeysCheckbox.className = "form-check-input";
     playedKeysCheckbox.setAttribute("aria-label", "Played keys");
     playedKeysOption.append(playedKeysCheckbox, document.createTextNode("Played keys"));
+    const sineIntersectionOption = document.createElement("label");
+    sineIntersectionOption.className = "visualization-option";
+    const sineIntersectionCheckbox = document.createElement("input");
+    sineIntersectionCheckbox.type = "checkbox";
+    sineIntersectionCheckbox.checked = true;
+    sineIntersectionCheckbox.className = "form-check-input";
+    sineIntersectionCheckbox.setAttribute("aria-label", "Sine intersection");
+    sineIntersectionOption.append(
+      sineIntersectionCheckbox,
+      document.createTextNode("Sine intersection")
+    );
+    const staticIntersectionOption = document.createElement("label");
+    staticIntersectionOption.className = "visualization-option";
+    const staticIntersectionCheckbox = document.createElement("input");
+    staticIntersectionCheckbox.type = "checkbox";
+    staticIntersectionCheckbox.checked = true;
+    staticIntersectionCheckbox.className = "form-check-input";
+    staticIntersectionCheckbox.setAttribute("aria-label", "Static intersection");
+    staticIntersectionOption.append(
+      staticIntersectionCheckbox,
+      document.createTextNode("Static intersection")
+    );
     const actions = document.createElement("div");
     actions.className = "visualization-settings-actions";
     const closeButton = document.createElement("button");
@@ -2870,10 +3104,23 @@
     closeButton.className = "btn btn-primary";
     closeButton.textContent = "Done";
     actions.append(closeButton);
-    form.append(audioWaveOption, playedKeysOption, actions);
+    form.append(
+      audioWaveOption,
+      playedKeysOption,
+      sineIntersectionOption,
+      staticIntersectionOption,
+      actions
+    );
     dialog.append(title, form);
     button.addEventListener("click", () => dialog.showModal());
-    return { button, dialog, audioWaveCheckbox, playedKeysCheckbox };
+    return {
+      button,
+      dialog,
+      audioWaveCheckbox,
+      playedKeysCheckbox,
+      sineIntersectionCheckbox,
+      staticIntersectionCheckbox
+    };
   }
   function createChordSettings() {
     const button = document.createElement("button");
@@ -3154,8 +3401,15 @@
     element.setAttribute("aria-label", "Audio visualizations");
     const audioWave = createAudioWavePanel();
     const playedKeys = createPlayedKeysPanel();
-    element.append(audioWave.panel, playedKeys.panel);
-    return { element, audioWave, playedKeys };
+    const sineIntersection = createSineIntersectionPanel();
+    const staticIntersection = createStaticIntersectionPanel();
+    element.append(
+      audioWave.panel,
+      playedKeys.panel,
+      sineIntersection.panel,
+      staticIntersection.panel
+    );
+    return { element, audioWave, playedKeys, sineIntersection, staticIntersection };
   }
   function createAudioWavePanel() {
     const panel = document.createElement("section");
@@ -3188,6 +3442,41 @@
     canvas.setAttribute("aria-label", "Currently played piano keys");
     panel.append(heading, canvas);
     return { panel, canvas };
+  }
+  function createSineIntersectionPanel() {
+    const panel = document.createElement("section");
+    panel.id = "sine-intersection-panel";
+    panel.className = "visualization-panel";
+    panel.hidden = true;
+    panel.setAttribute("aria-label", "Sine intersection");
+    const heading = document.createElement("h2");
+    heading.textContent = "Sine intersection";
+    const canvas = document.createElement("canvas");
+    canvas.id = "sine-intersection-canvas";
+    canvas.width = 640;
+    canvas.height = 200;
+    canvas.setAttribute("aria-label", "Sine wave for each played note");
+    panel.append(heading, canvas);
+    return { panel, canvas };
+  }
+  function createStaticIntersectionPanel() {
+    const panel = document.createElement("section");
+    panel.id = "static-intersection-panel";
+    panel.className = "visualization-panel";
+    panel.hidden = true;
+    panel.setAttribute("aria-label", "Static intersection");
+    const heading = document.createElement("h2");
+    heading.textContent = "Static intersection";
+    const canvas = document.createElement("canvas");
+    canvas.id = "static-intersection-canvas";
+    canvas.width = 640;
+    canvas.height = 160;
+    canvas.setAttribute("aria-label", "Sine waves for all active notes");
+    const explanation = document.createElement("output");
+    explanation.id = "static-intersection-explanation";
+    explanation.setAttribute("aria-live", "polite");
+    panel.append(heading, canvas, explanation);
+    return { panel, canvas, explanation };
   }
   function createAppView(envelopeView2) {
     const styles = createStyleElement();
@@ -3293,6 +3582,8 @@
     .app-visualizations {
       display: grid;
       gap: 0.75rem;
+      max-height: calc(100vh - 7rem);
+      overflow-y: auto;
       pointer-events: none;
       position: fixed;
       right: 1rem;
@@ -3319,6 +3610,13 @@
       display: block;
       height: auto;
       width: 100%;
+    }
+    .visualization-panel output {
+      color: #4a4b64;
+      display: block;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      margin-top: 0.5rem;
     }
     .app-card {
       background: #fff;
@@ -3574,10 +3872,17 @@
       visualizationDialog: header.dialog,
       audioWaveCheckbox: header.audioWaveCheckbox,
       playedKeysCheckbox: header.playedKeysCheckbox,
+      sineIntersectionCheckbox: header.sineIntersectionCheckbox,
+      staticIntersectionCheckbox: header.staticIntersectionCheckbox,
       audioWavePanel: visualizations.audioWave.panel,
       playedKeysPanel: visualizations.playedKeys.panel,
+      sineIntersectionPanel: visualizations.sineIntersection.panel,
+      staticIntersectionPanel: visualizations.staticIntersection.panel,
       audioWaveCanvas: visualizations.audioWave.canvas,
       playedKeysCanvas: visualizations.playedKeys.canvas,
+      sineIntersectionCanvas: visualizations.sineIntersection.canvas,
+      staticIntersectionCanvas: visualizations.staticIntersection.canvas,
+      staticIntersectionExplanation: visualizations.staticIntersection.explanation,
       form: keyboardScreen.form,
       keyCountInput: keyboardScreen.keyCountInput,
       sourceSelect: keyboardScreen.sourceSelect,

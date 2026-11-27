@@ -9,6 +9,8 @@ import { playSine } from "../audio/playSine";
 import { playSquare } from "../audio/playSquare";
 import type { Envelope, PlayMethod, PlayingAudio } from "../audio/types";
 import { AudioWaveVisualization } from "../audio-visualization/audio-wave/audio-wave-visualization";
+import { SineIntersectionVisualization } from "../audio-visualization/sine-intersection/sine-intersection-visualization";
+import { StaticIntersectionVisualization } from "../audio-visualization/static-intersection/static-intersection-visualization";
 import { PlayedKeysVisualization } from "../audio-visualization/played-keys/played-keys-visualization";
 import { CHORDS, NOTE_PITCH_CLASSES } from "../games/pitchGameData";
 import type { AppView } from "../views/appView";
@@ -38,6 +40,8 @@ export class AppController {
   private readonly activeNoteCounts: Map<number, number> = new Map<number, number>();
   private readonly audioWaveVisualization: AudioWaveVisualization;
   private readonly playedKeysVisualization: PlayedKeysVisualization;
+  private readonly sineIntersectionVisualization: SineIntersectionVisualization;
+  private readonly staticIntersectionVisualization: StaticIntersectionVisualization;
   private readonly visualizations: readonly VisualizationControl[];
   private visualizationFrame: number | undefined;
   private selectedSource: string = "sine";
@@ -62,6 +66,13 @@ export class AppController {
     this.customAudioController = customAudioController;
     this.audioWaveVisualization = new AudioWaveVisualization(this.view.audioWaveCanvas);
     this.playedKeysVisualization = new PlayedKeysVisualization(this.view.playedKeysCanvas);
+    this.sineIntersectionVisualization = new SineIntersectionVisualization(
+      this.view.sineIntersectionCanvas,
+    );
+    this.staticIntersectionVisualization = new StaticIntersectionVisualization(
+      this.view.staticIntersectionCanvas,
+      this.view.staticIntersectionExplanation,
+    );
     this.visualizations = [
       {
         checkbox: this.view.audioWaveCheckbox,
@@ -75,6 +86,20 @@ export class AppController {
         panel: this.view.playedKeysPanel,
         draw: (playedNotes: readonly number[], audioWave: Float32Array): void => {
           this.playedKeysVisualization.draw(playedNotes, audioWave);
+        },
+      },
+      {
+        checkbox: this.view.sineIntersectionCheckbox,
+        panel: this.view.sineIntersectionPanel,
+        draw: (playedNotes: readonly number[], audioWave: Float32Array): void => {
+          this.sineIntersectionVisualization.draw(playedNotes, audioWave);
+        },
+      },
+      {
+        checkbox: this.view.staticIntersectionCheckbox,
+        panel: this.view.staticIntersectionPanel,
+        draw: (playedNotes: readonly number[], audioWave: Float32Array): void => {
+          this.staticIntersectionVisualization.draw(playedNotes, audioWave);
         },
       },
     ];
@@ -251,6 +276,7 @@ export class AppController {
       visualization.draw(playedNotes, audioWave);
       hasEnabledVisualization = true;
     }
+
     if (!hasEnabledVisualization) {
       return;
     }

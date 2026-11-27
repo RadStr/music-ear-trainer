@@ -13,10 +13,17 @@ export interface AppView {
   readonly visualizationDialog: HTMLDialogElement;
   readonly audioWaveCheckbox: HTMLInputElement;
   readonly playedKeysCheckbox: HTMLInputElement;
+  readonly sineIntersectionCheckbox: HTMLInputElement;
+  readonly staticIntersectionCheckbox: HTMLInputElement;
   readonly audioWavePanel: HTMLElement;
   readonly playedKeysPanel: HTMLElement;
+  readonly sineIntersectionPanel: HTMLElement;
+  readonly staticIntersectionPanel: HTMLElement;
   readonly audioWaveCanvas: HTMLCanvasElement;
   readonly playedKeysCanvas: HTMLCanvasElement;
+  readonly sineIntersectionCanvas: HTMLCanvasElement;
+  readonly staticIntersectionCanvas: HTMLCanvasElement;
+  readonly staticIntersectionExplanation: HTMLOutputElement;
   readonly form: HTMLFormElement;
   readonly keyCountInput: HTMLInputElement;
   readonly sourceSelect: HTMLSelectElement;
@@ -49,6 +56,8 @@ interface VisualizationSettingsView {
   readonly dialog: HTMLDialogElement;
   readonly audioWaveCheckbox: HTMLInputElement;
   readonly playedKeysCheckbox: HTMLInputElement;
+  readonly sineIntersectionCheckbox: HTMLInputElement;
+  readonly staticIntersectionCheckbox: HTMLInputElement;
 }
 
 interface AppHeaderView extends VisualizationSettingsView {
@@ -124,6 +133,12 @@ interface AppVisualizationsView {
   readonly element: HTMLElement;
   readonly audioWave: VisualizationPanelView;
   readonly playedKeys: VisualizationPanelView;
+  readonly sineIntersection: VisualizationPanelView;
+  readonly staticIntersection: StaticIntersectionPanelView;
+}
+
+interface StaticIntersectionPanelView extends VisualizationPanelView {
+  readonly explanation: HTMLOutputElement;
 }
 
 function createStyleElement(): HTMLStyleElement {
@@ -202,6 +217,30 @@ function createVisualizationSettings(): VisualizationSettingsView {
   playedKeysCheckbox.setAttribute("aria-label", "Played keys");
   playedKeysOption.append(playedKeysCheckbox, document.createTextNode("Played keys"));
 
+  const sineIntersectionOption: HTMLLabelElement = document.createElement("label");
+  sineIntersectionOption.className = "visualization-option";
+  const sineIntersectionCheckbox: HTMLInputElement = document.createElement("input");
+  sineIntersectionCheckbox.type = "checkbox";
+  sineIntersectionCheckbox.checked = true;
+  sineIntersectionCheckbox.className = "form-check-input";
+  sineIntersectionCheckbox.setAttribute("aria-label", "Sine intersection");
+  sineIntersectionOption.append(
+    sineIntersectionCheckbox,
+    document.createTextNode("Sine intersection"),
+  );
+
+  const staticIntersectionOption: HTMLLabelElement = document.createElement("label");
+  staticIntersectionOption.className = "visualization-option";
+  const staticIntersectionCheckbox: HTMLInputElement = document.createElement("input");
+  staticIntersectionCheckbox.type = "checkbox";
+  staticIntersectionCheckbox.checked = true;
+  staticIntersectionCheckbox.className = "form-check-input";
+  staticIntersectionCheckbox.setAttribute("aria-label", "Static intersection");
+  staticIntersectionOption.append(
+    staticIntersectionCheckbox,
+    document.createTextNode("Static intersection"),
+  );
+
   const actions: HTMLDivElement = document.createElement("div");
   actions.className = "visualization-settings-actions";
   const closeButton: HTMLButtonElement = document.createElement("button");
@@ -210,10 +249,23 @@ function createVisualizationSettings(): VisualizationSettingsView {
   closeButton.textContent = "Done";
   actions.append(closeButton);
 
-  form.append(audioWaveOption, playedKeysOption, actions);
+  form.append(
+    audioWaveOption,
+    playedKeysOption,
+    sineIntersectionOption,
+    staticIntersectionOption,
+    actions,
+  );
   dialog.append(title, form);
   button.addEventListener("click", (): void => dialog.showModal());
-  return { button, dialog, audioWaveCheckbox, playedKeysCheckbox };
+  return {
+    button,
+    dialog,
+    audioWaveCheckbox,
+    playedKeysCheckbox,
+    sineIntersectionCheckbox,
+    staticIntersectionCheckbox,
+  };
 }
 
 function createChordSettings(): ChordSettingsView {
@@ -535,8 +587,15 @@ function createVisualizations(): AppVisualizationsView {
   element.setAttribute("aria-label", "Audio visualizations");
   const audioWave: VisualizationPanelView = createAudioWavePanel();
   const playedKeys: VisualizationPanelView = createPlayedKeysPanel();
-  element.append(audioWave.panel, playedKeys.panel);
-  return { element, audioWave, playedKeys };
+  const sineIntersection: VisualizationPanelView = createSineIntersectionPanel();
+  const staticIntersection: StaticIntersectionPanelView = createStaticIntersectionPanel();
+  element.append(
+    audioWave.panel,
+    playedKeys.panel,
+    sineIntersection.panel,
+    staticIntersection.panel,
+  );
+  return { element, audioWave, playedKeys, sineIntersection, staticIntersection };
 }
 
 function createAudioWavePanel(): VisualizationPanelView {
@@ -571,6 +630,43 @@ function createPlayedKeysPanel(): VisualizationPanelView {
   canvas.setAttribute("aria-label", "Currently played piano keys");
   panel.append(heading, canvas);
   return { panel, canvas };
+}
+
+function createSineIntersectionPanel(): VisualizationPanelView {
+  const panel: HTMLElement = document.createElement("section");
+  panel.id = "sine-intersection-panel";
+  panel.className = "visualization-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Sine intersection");
+  const heading: HTMLHeadingElement = document.createElement("h2");
+  heading.textContent = "Sine intersection";
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+  canvas.id = "sine-intersection-canvas";
+  canvas.width = 640;
+  canvas.height = 200;
+  canvas.setAttribute("aria-label", "Sine wave for each played note");
+  panel.append(heading, canvas);
+  return { panel, canvas };
+}
+
+function createStaticIntersectionPanel(): StaticIntersectionPanelView {
+  const panel: HTMLElement = document.createElement("section");
+  panel.id = "static-intersection-panel";
+  panel.className = "visualization-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Static intersection");
+  const heading: HTMLHeadingElement = document.createElement("h2");
+  heading.textContent = "Static intersection";
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+  canvas.id = "static-intersection-canvas";
+  canvas.width = 640;
+  canvas.height = 160;
+  canvas.setAttribute("aria-label", "Sine waves for all active notes");
+  const explanation: HTMLOutputElement = document.createElement("output");
+  explanation.id = "static-intersection-explanation";
+  explanation.setAttribute("aria-live", "polite");
+  panel.append(heading, canvas, explanation);
+  return { panel, canvas, explanation };
 }
 
 /**
@@ -682,6 +778,8 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     .app-visualizations {
       display: grid;
       gap: 0.75rem;
+      max-height: calc(100vh - 7rem);
+      overflow-y: auto;
       pointer-events: none;
       position: fixed;
       right: 1rem;
@@ -708,6 +806,13 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       display: block;
       height: auto;
       width: 100%;
+    }
+    .visualization-panel output {
+      color: #4a4b64;
+      display: block;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      margin-top: 0.5rem;
     }
     .app-card {
       background: #fff;
@@ -966,10 +1071,17 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     visualizationDialog: header.dialog,
     audioWaveCheckbox: header.audioWaveCheckbox,
     playedKeysCheckbox: header.playedKeysCheckbox,
+    sineIntersectionCheckbox: header.sineIntersectionCheckbox,
+    staticIntersectionCheckbox: header.staticIntersectionCheckbox,
     audioWavePanel: visualizations.audioWave.panel,
     playedKeysPanel: visualizations.playedKeys.panel,
+    sineIntersectionPanel: visualizations.sineIntersection.panel,
+    staticIntersectionPanel: visualizations.staticIntersection.panel,
     audioWaveCanvas: visualizations.audioWave.canvas,
     playedKeysCanvas: visualizations.playedKeys.canvas,
+    sineIntersectionCanvas: visualizations.sineIntersection.canvas,
+    staticIntersectionCanvas: visualizations.staticIntersection.canvas,
+    staticIntersectionExplanation: visualizations.staticIntersection.explanation,
     form: keyboardScreen.form,
     keyCountInput: keyboardScreen.keyCountInput,
     sourceSelect: keyboardScreen.sourceSelect,

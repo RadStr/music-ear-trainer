@@ -35,3 +35,17 @@ Also in the appView you are doing a lot of setting of variables, cant you like p
 Also add to agents.md the appview initializaiton methods - that is if you initializae some ui element it sohuld be inside of a method. idk if I am making it understandable, simply follow the current structure.
 
 27-11-26:20-11-14 Make sure that when playing a chord on the keyboard it shows highlights all the played keys not only the pressed one.
+
+27-11-26:20-24-00
+Now lets a make another visualization. Lets name it "intersection" (again a separate directory, now that we are at it at this note about directories to agents.md. Make a separate section in the document if necessary).
+
+What this visualization does is that it takes currently played notes and it visualizes each of the played note separately, meaning its audio wave.
+
+Lets add also sine-intersection which does the same but visaulizes sines instead (even if the user currently has set other type of wave).
+
+And finally lets add static-intersection. This visualizes a graph and under it a text. This visualization should answer the question how long does it take until the sine waves meet. Basically how much is one multiple of another. Try to make this code extra easy to understand since I want to check it in more detail.
+
+27-11-26:20-50-36
+actually remove the intersection-visualization.
+
+Also static intersection should show all of them not just the first two so it could be for example 1:2:3. Also I do not really care about the time it takes to intersect, I care about number of cycles.

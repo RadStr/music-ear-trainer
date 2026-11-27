@@ -165,6 +165,12 @@ const { AudioWaveVisualization } = await loadBundle(
 const { PlayedKeysVisualization } = await loadBundle(
   resolve(projectRoot, "audio-visualization", "played-keys", "played-keys-visualization.ts"),
 );
+const { SineIntersectionVisualization } = await loadBundle(
+  resolve(projectRoot, "audio-visualization", "sine-intersection", "sine-intersection-visualization.ts"),
+);
+const { StaticIntersectionVisualization } = await loadBundle(
+  resolve(projectRoot, "audio-visualization", "static-intersection", "static-intersection-visualization.ts"),
+);
 
 test("AppController plays every C4-C5 note as a sine at its equal-tempered frequency", () => {
   // Exercise MIDI-to-frequency conversion without constructing the full UI.
@@ -384,4 +390,55 @@ test("played keys visualization shows active MIDI note names and clears when non
   commands.length = 0;
   visualization.draw([], new Float32Array());
   assert.deepEqual(commands, [["clearRect", 0, 0, 200, 100]]);
+});
+
+test("sine intersection draws one generated sine for every active note", () => {
+  const commands = [];
+  const context = {
+    clearRect: (...args) => commands.push(["clearRect", ...args]),
+    beginPath: () => commands.push(["beginPath"]),
+    moveTo: (...args) => commands.push(["moveTo", ...args]),
+    lineTo: (...args) => commands.push(["lineTo", ...args]),
+    stroke: () => commands.push(["stroke"]),
+    fillText: (...args) => commands.push(["fillText", ...args]),
+  };
+  const canvas = {
+    width: 200,
+    height: 100,
+    getContext: () => context,
+  };
+  const visualization = new SineIntersectionVisualization(canvas);
+
+  visualization.draw([60, 67], new Float32Array());
+
+  assert.deepEqual(
+    commands.filter(([command]) => command === "fillText").map(([, note]) => note),
+    ["C4", "G4"],
+  );
+  assert.equal(commands.filter(([command]) => command === "stroke").length, 4);
+});
+
+test("static intersection graphs every note and reports their cycle-count ratio", () => {
+  const commands = [];
+  const context = {
+    clearRect: (...args) => commands.push(["clearRect", ...args]),
+    beginPath: () => commands.push(["beginPath"]),
+    moveTo: (...args) => commands.push(["moveTo", ...args]),
+    lineTo: (...args) => commands.push(["lineTo", ...args]),
+    stroke: () => commands.push(["stroke"]),
+  };
+  const canvas = {
+    width: 200,
+    height: 100,
+    getContext: () => context,
+  };
+  const explanation = { textContent: "" };
+  const visualization = new StaticIntersectionVisualization(canvas, explanation);
+
+  visualization.draw([60, 67, 72], new Float32Array());
+
+  assert.match(explanation.textContent, /2:3:4/);
+  assert.match(explanation.textContent, /C4: 2 cycles, G4: 3 cycles, C5: 4 cycles/);
+  assert.match(explanation.textContent, /closest simple match/);
+  assert.equal(commands.filter(([command]) => command === "stroke").length, 3);
 });

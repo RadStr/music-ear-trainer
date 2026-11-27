@@ -44,6 +44,11 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 - Create a new file under `todo-improve-architecture/` only when no existing file clearly owns the responsibility and the implementation is not a natural part of an existing module.
 - Name the file with 1-3 lowercase kebab-case words that describe the feature.
 
+## Visualization directories
+
+- Keep each audio visualization implementation in its own 1-3 word kebab-case directory under `audio-visualization/`, for example `audio-visualization/audio-wave/` and `audio-visualization/played-keys/`.
+- Keep shared visualization interfaces and helpers directly under `audio-visualization/`; do not combine separate visualization implementations into one directory or file.
+
 ## Testing
 
 - Create or update a test when changing a method that starts, stops, restarts, schedules, seeks, buffers, or exposes state for audio playback.
