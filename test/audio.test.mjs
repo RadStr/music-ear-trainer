@@ -83,6 +83,14 @@ class FakeBufferSource extends FakeAudioNode {
   addEventListener() {}
 }
 
+class FakeAnalyser extends FakeAudioNode {
+  fftSize = 2048;
+
+  getFloatTimeDomainData(samples) {
+    samples.fill(0.25);
+  }
+}
+
 class FakeAudioContext {
   static instances = [];
   state = "running";
@@ -91,6 +99,7 @@ class FakeAudioContext {
   oscillators = [];
   gains = [];
   bufferSources = [];
+  analyser;
 
   constructor() {
     FakeAudioContext.instances.push(this);
@@ -112,6 +121,11 @@ class FakeAudioContext {
     const source = new FakeBufferSource();
     this.bufferSources.push(source);
     return source;
+  }
+
+  createAnalyser() {
+    this.analyser = new FakeAnalyser();
+    return this.analyser;
   }
 
   decodeAudioData(data) {
@@ -138,16 +152,25 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { AppController } = await loadBundle(
   resolve(projectRoot, "controllers", "appController.ts"),
 );
-const { playAudio, setMasterVolume } = await loadBundle(resolve(projectRoot, "audio", "play.ts"));
+const { getCurrentAudioWave, playAudio, setMasterVolume } = await loadBundle(
+  resolve(projectRoot, "audio", "play.ts"),
+);
 const { playSine } = await loadBundle(resolve(projectRoot, "audio", "playSine.ts"));
 const { SampleSource, normalizeSampleDirectoryUrl } = await loadBundle(
   resolve(projectRoot, "audio", "sampleSource.ts"),
+);
+const { AudioWaveVisualization } = await loadBundle(
+  resolve(projectRoot, "audio-visualization", "audio-wave", "audio-wave-visualization.ts"),
+);
+const { PlayedKeysVisualization } = await loadBundle(
+  resolve(projectRoot, "audio-visualization", "played-keys", "played-keys-visualization.ts"),
 );
 
 test("AppController plays every C4-C5 note as a sine at its equal-tempered frequency", () => {
   // Exercise MIDI-to-frequency conversion without constructing the full UI.
   const controller = Object.create(AppController.prototype);
   controller.selectedSource = "sine";
+  controller.activeNoteCounts = new Map();
   const expectedFrequencies = [
     261.6255653005986,
     277.1826309768721,
@@ -215,7 +238,11 @@ test("audio engine schedules a sine voice through the gain chain and releases it
   assert.equal(oscillator.startTime, context.currentTime);
   assert.equal(oscillator.connections[0], context.gains[0]);
   assert.equal(context.gains[0].connections[0], context.gains[1]);
-  assert.equal(context.gains[1].connections[0], context.destination);
+  assert.equal(context.gains[1].connections[0], context.analyser);
+  assert.equal(context.analyser.connections[0], context.destination);
+  const audioWave = getCurrentAudioWave();
+  assert.equal(audioWave.length, context.analyser.fftSize);
+  assert.equal(audioWave[0], 0.25);
 
   voice.release();
   assert.equal(oscillator.stopTime, context.currentTime + envelope.release);
@@ -274,4 +301,86 @@ test("sample directory URL normalization accepts HTTP(S) and rejects credentials
     () => normalizeSampleDirectoryUrl("ftp://example.com/samples"),
     /HTTP or HTTPS/,
   );
+});
+
+test("audio wave visualization draws waveform samples across the canvas", () => {
+  const commands = [];
+  const context = {
+    clearRect: (...args) => commands.push(["clearRect", ...args]),
+    beginPath: () => commands.push(["beginPath"]),
+    moveTo: (...args) => commands.push(["moveTo", ...args]),
+    lineTo: (...args) => commands.push(["lineTo", ...args]),
+    stroke: () => commands.push(["stroke"]),
+  };
+  const canvas = {
+    width: 100,
+    height: 40,
+    getContext: () => context,
+  };
+  const visualization = new AudioWaveVisualization(canvas);
+
+  visualization.draw([60], Float32Array.of(0, 1, -1));
+
+  assert.deepEqual(commands, [
+    ["clearRect", 0, 0, 100, 40],
+    ["beginPath"],
+    ["moveTo", 0, 20],
+    ["lineTo", 50, 0],
+    ["lineTo", 100, 40],
+    ["stroke"],
+  ]);
+});
+
+test("audio wave visualization shows a center line before audio is available", () => {
+  const commands = [];
+  const context = {
+    clearRect: (...args) => commands.push(["clearRect", ...args]),
+    beginPath: () => commands.push(["beginPath"]),
+    moveTo: (...args) => commands.push(["moveTo", ...args]),
+    lineTo: (...args) => commands.push(["lineTo", ...args]),
+    stroke: () => commands.push(["stroke"]),
+  };
+  const canvas = {
+    width: 100,
+    height: 40,
+    getContext: () => context,
+  };
+  const visualization = new AudioWaveVisualization(canvas);
+
+  visualization.draw([], new Float32Array());
+
+  assert.deepEqual(commands, [
+    ["clearRect", 0, 0, 100, 40],
+    ["beginPath"],
+    ["moveTo", 0, 20],
+    ["lineTo", 100, 20],
+    ["stroke"],
+  ]);
+});
+
+test("played keys visualization shows active MIDI note names and clears when none remain", () => {
+  const commands = [];
+  const context = {
+    clearRect: (...args) => commands.push(["clearRect", ...args]),
+    fillRect: (...args) => commands.push(["fillRect", context.fillStyle, ...args]),
+    strokeRect: (...args) => commands.push(["strokeRect", ...args]),
+    fillText: (...args) => commands.push(["fillText", ...args]),
+  };
+  const canvas = {
+    width: 200,
+    height: 100,
+    getContext: () => context,
+  };
+  const visualization = new PlayedKeysVisualization(canvas);
+
+  visualization.draw([60, 61], Float32Array.of(0));
+  assert.deepEqual(
+    commands.filter(([command]) => command === "fillText").map(([, note]) => note),
+    ["C4", "C♯4"],
+  );
+  assert.equal(commands.filter(([command]) => command === "fillRect").length, 2);
+
+  commands.length = 0;
+  visualization.draw([], new Float32Array());
+  assert.deepEqual(commands, [["clearRect", 0, 0, 200, 100]]);
 });

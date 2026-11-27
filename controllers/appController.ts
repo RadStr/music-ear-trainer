@@ -1,13 +1,26 @@
-import { playAudio, prepareAudioContext, setMasterVolume } from "../audio/play";
+import {
+  getCurrentAudioWave,
+  playAudio,
+  prepareAudioContext,
+  setMasterVolume,
+} from "../audio/play";
 import { playSawtooth } from "../audio/playSawtooth";
 import { playSine } from "../audio/playSine";
 import { playSquare } from "../audio/playSquare";
 import type { Envelope, PlayMethod, PlayingAudio } from "../audio/types";
+import { AudioWaveVisualization } from "../audio-visualization/audio-wave/audio-wave-visualization";
+import { PlayedKeysVisualization } from "../audio-visualization/played-keys/played-keys-visualization";
 import type { AppView } from "../views/appView";
 import { renderKeyboard } from "../keyboard";
 import { CustomAudioController } from "./customAudioController";
 import { EnvelopeController } from "./envelopeController";
 import { META_INSTRUMENTS, MetaAudioController } from "./metaAudioController";
+
+interface VisualizationControl {
+  readonly checkbox: HTMLInputElement;
+  readonly panel: HTMLElement;
+  readonly draw: (playedNotes: readonly number[], audioWave: Float32Array) => void;
+}
 
 export class AppController {
   private readonly view: AppView;
@@ -15,6 +28,11 @@ export class AppController {
   private readonly metaAudioController: MetaAudioController;
   private readonly customAudioController: CustomAudioController;
   private readonly activeVoices: Map<number, PlayingAudio> = new Map<number, PlayingAudio>();
+  private readonly activeNoteCounts: Map<number, number> = new Map<number, number>();
+  private readonly audioWaveVisualization: AudioWaveVisualization;
+  private readonly playedKeysVisualization: PlayedKeysVisualization;
+  private readonly visualizations: readonly VisualizationControl[];
+  private visualizationFrame: number | undefined;
   private selectedSource: string = "sine";
 
   /**
@@ -34,6 +52,24 @@ export class AppController {
     this.envelopeController = envelopeController;
     this.metaAudioController = metaAudioController;
     this.customAudioController = customAudioController;
+    this.audioWaveVisualization = new AudioWaveVisualization(this.view.audioWaveCanvas);
+    this.playedKeysVisualization = new PlayedKeysVisualization(this.view.playedKeysCanvas);
+    this.visualizations = [
+      {
+        checkbox: this.view.audioWaveCheckbox,
+        panel: this.view.audioWavePanel,
+        draw: (playedNotes: readonly number[], audioWave: Float32Array): void => {
+          this.audioWaveVisualization.draw(playedNotes, audioWave);
+        },
+      },
+      {
+        checkbox: this.view.playedKeysCheckbox,
+        panel: this.view.playedKeysPanel,
+        draw: (playedNotes: readonly number[], audioWave: Float32Array): void => {
+          this.playedKeysVisualization.draw(playedNotes, audioWave);
+        },
+      },
+    ];
 
     this.view.volumeInput.addEventListener("input", (_event: Event): void => {
       this.view.volumeOutput.textContent = `${this.view.volumeInput.value}%`;
@@ -57,6 +93,11 @@ export class AppController {
     this.view.loadCustomSamplesButton.addEventListener("click", (_event: MouseEvent): void => {
       this.loadCustomSamples();
     });
+    for (const visualization of this.visualizations) {
+      visualization.checkbox.addEventListener("change", (): void => {
+        this.updateVisualizations();
+      });
+    }
 
     this.view.form.addEventListener("submit", (event: SubmitEvent): void => {
       event.preventDefault();
@@ -91,34 +132,105 @@ export class AppController {
    */
   playNote(midiNote: number, envelope: Envelope): PlayingAudio {
     const source: string = this.selectedSource;
+    let playingAudio: PlayingAudio;
     if (source === "sine" || source === "square" || source === "sawtooth") {
-      return playAudio(this.getWaveformPlayMethod(source), this.midiToFrequency(midiNote), envelope);
+      playingAudio = playAudio(
+        this.getWaveformPlayMethod(source),
+        this.midiToFrequency(midiNote),
+        envelope,
+      );
+    } else {
+      const context: AudioContext = prepareAudioContext();
+      let released: boolean = false;
+      let voice: PlayingAudio | undefined;
+      const ready: Promise<void> = this.getSamplePlayMethod(source, midiNote, context).then(
+        (playMethod: PlayMethod): void => {
+          if (released) {
+            return;
+          }
+          voice = playAudio(playMethod, this.midiToFrequency(midiNote), envelope);
+        },
+      );
+      void ready.catch((error: unknown): void => {
+        const message: string = error instanceof Error ? error.message : String(error);
+        this.view.soundStatus.textContent = `Audio sample error: ${message}`;
+        console.error("Unable to play the selected sample.", error);
+      });
+
+      playingAudio = {
+        ready,
+        release: (): void => {
+          released = true;
+          voice?.release();
+        },
+      };
     }
 
-    const context: AudioContext = prepareAudioContext();
+    return this.trackActiveNote(midiNote, playingAudio);
+  }
+
+  private trackActiveNote(midiNote: number, voice: PlayingAudio): PlayingAudio {
+    const activeCount: number = this.activeNoteCounts.get(midiNote) ?? 0;
+    this.activeNoteCounts.set(midiNote, activeCount + 1);
     let released: boolean = false;
-    let voice: PlayingAudio | undefined;
-    const ready: Promise<void> = this.getSamplePlayMethod(source, midiNote, context).then(
-      (playMethod: PlayMethod): void => {
+    return {
+      ready: voice.ready,
+      release: (): void => {
         if (released) {
           return;
         }
-        voice = playAudio(playMethod, this.midiToFrequency(midiNote), envelope);
-      },
-    );
-    void ready.catch((error: unknown): void => {
-      const message: string = error instanceof Error ? error.message : String(error);
-      this.view.soundStatus.textContent = `Audio sample error: ${message}`;
-      console.error("Unable to play the selected sample.", error);
-    });
-
-    return {
-      ready,
-      release: (): void => {
         released = true;
-        voice?.release();
+        try {
+          voice.release();
+        } finally {
+          const currentCount: number = this.activeNoteCounts.get(midiNote) ?? 0;
+          if (currentCount <= 1) {
+            this.activeNoteCounts.delete(midiNote);
+          } else {
+            this.activeNoteCounts.set(midiNote, currentCount - 1);
+          }
+        }
       },
     };
+  }
+
+  private updateVisualizations(): void {
+    let hasEnabledVisualization: boolean = false;
+    for (const visualization of this.visualizations) {
+      const isEnabled: boolean = visualization.checkbox.checked;
+      visualization.panel.hidden = !isEnabled;
+      hasEnabledVisualization = hasEnabledVisualization || isEnabled;
+    }
+    if (!hasEnabledVisualization) {
+      if (this.visualizationFrame !== undefined) {
+        window.cancelAnimationFrame(this.visualizationFrame);
+        this.visualizationFrame = undefined;
+      }
+      return;
+    }
+    if (this.visualizationFrame === undefined) {
+      this.drawVisualizations();
+    }
+  }
+
+  private drawVisualizations(): void {
+    this.visualizationFrame = undefined;
+    const playedNotes: readonly number[] = Array.from(this.activeNoteCounts.keys());
+    const audioWave: Float32Array = getCurrentAudioWave();
+    let hasEnabledVisualization: boolean = false;
+    for (const visualization of this.visualizations) {
+      if (!visualization.checkbox.checked) {
+        continue;
+      }
+      visualization.draw(playedNotes, audioWave);
+      hasEnabledVisualization = true;
+    }
+    if (!hasEnabledVisualization) {
+      return;
+    }
+    this.visualizationFrame = window.requestAnimationFrame((): void => {
+      this.drawVisualizations();
+    });
   }
 
   private renderSelectedKeyboard(): void {

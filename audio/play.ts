@@ -1,8 +1,10 @@
 import type { Envelope, PlayMethod, PlayingAudio } from "./types";
 
 let audioContext: AudioContext | undefined;
+let audioAnalyser: AnalyserNode | undefined;
 let masterVolume: number = 0.7;
 const activeVolumeGains: Set<GainNode> = new Set<GainNode>();
+const EMPTY_AUDIO_WAVE: Float32Array = new Float32Array(0);
 
 /**
  * Creates or reuses the shared Web Audio context and resumes suspended playback.
@@ -11,6 +13,9 @@ const activeVolumeGains: Set<GainNode> = new Set<GainNode>();
 export function prepareAudioContext(): AudioContext {
   if (!audioContext || audioContext.state === "closed") {
     audioContext = new AudioContext();
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 2048;
+    audioAnalyser.connect(audioContext.destination);
   }
   if (audioContext.state === "suspended") {
     void audioContext.resume().catch((error: unknown) => {
@@ -18,6 +23,20 @@ export function prepareAudioContext(): AudioContext {
     });
   }
   return audioContext;
+}
+
+/**
+ * Reads the current mixed audio signal for the waveform visualization.
+ * @returns A snapshot of the analyser's time-domain samples, or an empty array before playback starts.
+ */
+export function getCurrentAudioWave(): Float32Array {
+  if (!audioAnalyser || !audioContext || audioContext.state === "closed") {
+    return EMPTY_AUDIO_WAVE;
+  }
+
+  const samples: Float32Array<ArrayBuffer> = new Float32Array(audioAnalyser.fftSize);
+  audioAnalyser.getFloatTimeDomainData(samples);
+  return samples;
 }
 
 /**
@@ -90,6 +109,9 @@ export function playAudio(
   }
 
   const context: AudioContext = prepareAudioContext();
+  if (!audioAnalyser) {
+    throw new Error("The audio analyser is unavailable.");
+  }
 
   const now: number = context.currentTime;
   const source: AudioScheduledSourceNode = playMethod(context, frequency);
@@ -100,7 +122,7 @@ export function playAudio(
 
   source.connect(gain);
   gain.connect(volumeGain);
-  volumeGain.connect(context.destination);
+  volumeGain.connect(audioAnalyser);
   volumeGain.gain.setValueAtTime(masterVolume, now);
   activeVolumeGains.add(volumeGain);
   gainParameter.setValueAtTime(0.0001, now);

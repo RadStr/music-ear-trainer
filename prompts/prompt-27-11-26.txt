@@ -6,3 +6,19 @@
 
 27-11-26:17-09-17 CAn you change the starting position of scrollbar so on the left is C3 (because the notes under it are usually useless)
 
+27-11-26:19-06-39 Create a new directory named audio-visualization. This directory will contain further directories. For now audio-wave and played-keys.
+
+Put file into the audio-visualization, the name is up to you. But the file should contain a interface that represents visualization. Or make it abstract class. However it should get fed the currently played notes (separate) and the resulting audio wave. It will then have draw method that processes it.
+
+In the case of audio-wave it will show currently played audio wave. In the case of played-keys it will simply show currently played keys for now.
+
+27-11-26:19-15-32 I do not see the drawn wave. So now I would like you to do the following to fix that:
+1) Add a new button named "Visualization settings". When clicked it will open a dialog with checkboxes that lets user set on visualizations.
+2) If checkbox is set the corresponding visualization will be shown at top right of the main window.
+
+27-11-26:19-28-57 Ok I guess. But ideally you would use for cycle to process the different visualizaitons. so ideally fix that. And I have a question regarding the getaudiowave or whatever it was - how many samples does it get or how does it work?
+
+Also in the appView you are doing a lot of setting of variables, cant you like put each initiazliation of a element into a separate method and the method will return the resulting variable to use? For example the audioWavePanel and audioWaveCanvas should be created inside a metohd, similarly playedKeysPanel and playedKeyCanvas inside of a nother method
+
+27-11-26:19-33-08 Ok but in the appView you should do this for all the initializaitons there is more than the two i just mentioned.
+

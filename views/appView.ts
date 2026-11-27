@@ -8,6 +8,14 @@ export interface AppView {
   readonly scaleGameButton: HTMLButtonElement;
   readonly volumeInput: HTMLInputElement;
   readonly volumeOutput: HTMLOutputElement;
+  readonly visualizationSettingsButton: HTMLButtonElement;
+  readonly visualizationDialog: HTMLDialogElement;
+  readonly audioWaveCheckbox: HTMLInputElement;
+  readonly playedKeysCheckbox: HTMLInputElement;
+  readonly audioWavePanel: HTMLElement;
+  readonly playedKeysPanel: HTMLElement;
+  readonly audioWaveCanvas: HTMLCanvasElement;
+  readonly playedKeysCanvas: HTMLCanvasElement;
   readonly form: HTMLFormElement;
   readonly keyCountInput: HTMLInputElement;
   readonly sourceSelect: HTMLSelectElement;
@@ -21,13 +29,475 @@ export interface AppView {
   readonly keyboardContainer: HTMLDivElement;
 }
 
+interface VisualizationPanelView {
+  readonly panel: HTMLElement;
+  readonly canvas: HTMLCanvasElement;
+}
+
+interface VolumeControlView {
+  readonly element: HTMLDivElement;
+  readonly input: HTMLInputElement;
+  readonly output: HTMLOutputElement;
+}
+
+interface VisualizationSettingsView {
+  readonly button: HTMLButtonElement;
+  readonly dialog: HTMLDialogElement;
+  readonly audioWaveCheckbox: HTMLInputElement;
+  readonly playedKeysCheckbox: HTMLInputElement;
+}
+
+interface AppHeaderView extends VisualizationSettingsView {
+  readonly element: HTMLElement;
+  readonly volumeInput: HTMLInputElement;
+  readonly volumeOutput: HTMLOutputElement;
+}
+
+interface GameNavigationView {
+  readonly element: HTMLElement;
+  readonly gameButton: HTMLButtonElement;
+  readonly chordGameButton: HTMLButtonElement;
+  readonly scaleGameButton: HTMLButtonElement;
+}
+
+interface KeyboardSizeControlView {
+  readonly element: HTMLLabelElement;
+  readonly input: HTMLInputElement;
+}
+
+interface MetaAudioMenuView {
+  readonly element: HTMLDetailsElement;
+  readonly buttons: readonly HTMLButtonElement[];
+}
+
+interface CustomSamplePanelView {
+  readonly element: HTMLDivElement;
+  readonly urlInput: HTMLInputElement;
+  readonly loadButton: HTMLButtonElement;
+}
+
+interface AudioSourceControlsView {
+  readonly sourceLabel: HTMLLabelElement;
+  readonly sourceSelect: HTMLSelectElement;
+  readonly metaAudioMenu: MetaAudioMenuView;
+  readonly customSourceButton: HTMLButtonElement;
+  readonly customSamplePanel: CustomSamplePanelView;
+}
+
+interface KeyboardControlsView {
+  readonly form: HTMLFormElement;
+  readonly keyCountInput: HTMLInputElement;
+  readonly sourceSelect: HTMLSelectElement;
+  readonly metaAudioButtons: readonly HTMLButtonElement[];
+  readonly customSourceButton: HTMLButtonElement;
+  readonly customSamplePanel: HTMLDivElement;
+  readonly customSampleUrlInput: HTMLInputElement;
+  readonly loadCustomSamplesButton: HTMLButtonElement;
+}
+
+interface KeyboardStatusView {
+  readonly instructions: HTMLParagraphElement;
+  readonly frequencyOutput: HTMLOutputElement;
+  readonly soundStatus: HTMLOutputElement;
+}
+
+interface KeyboardScreenView extends KeyboardControlsView, KeyboardStatusView {
+  readonly element: HTMLElement;
+  readonly keyboardContainer: HTMLDivElement;
+}
+
+interface AppVisualizationsView {
+  readonly element: HTMLElement;
+  readonly audioWave: VisualizationPanelView;
+  readonly playedKeys: VisualizationPanelView;
+}
+
+function createStyleElement(): HTMLStyleElement {
+  return document.createElement("style");
+}
+
+function createAppRoot(): HTMLElement {
+  const app: HTMLElement = document.createElement("main");
+  app.className = "container app-shell";
+  return app;
+}
+
+function createBrand(): HTMLDivElement {
+  const brand: HTMLDivElement = document.createElement("div");
+  brand.className = "app-brand";
+  const brandLabel: HTMLSpanElement = document.createElement("span");
+  brandLabel.textContent = "LISTEN · LEARN · PLAY";
+  const brandName: HTMLElement = document.createElement("strong");
+  brandName.textContent = "Learning by Ear";
+  brand.append(brandLabel, brandName);
+  return brand;
+}
+
+function createVolumeControl(): VolumeControlView {
+  const element: HTMLDivElement = document.createElement("div");
+  element.className = "app-volume-control";
+  const label: HTMLLabelElement = document.createElement("label");
+  label.htmlFor = "app-volume";
+  label.textContent = "Volume";
+  const input: HTMLInputElement = document.createElement("input");
+  input.id = "app-volume";
+  input.type = "range";
+  input.min = "0";
+  input.max = "100";
+  input.step = "1";
+  input.value = "70";
+  input.className = "form-range";
+  input.setAttribute("aria-label", "Volume");
+  const output: HTMLOutputElement = document.createElement("output");
+  output.textContent = `${input.value}%`;
+  label.append(input, output);
+  element.append(label);
+  return { element, input, output };
+}
+
+function createVisualizationSettings(): VisualizationSettingsView {
+  const button: HTMLButtonElement = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-outline-secondary";
+  button.textContent = "Visualization settings";
+
+  const dialog: HTMLDialogElement = document.createElement("dialog");
+  dialog.className = "visualization-settings-dialog";
+  dialog.setAttribute("aria-labelledby", "visualization-settings-title");
+  const title: HTMLHeadingElement = document.createElement("h2");
+  title.id = "visualization-settings-title";
+  title.textContent = "Visualization settings";
+  const form: HTMLFormElement = document.createElement("form");
+  form.method = "dialog";
+
+  const audioWaveOption: HTMLLabelElement = document.createElement("label");
+  audioWaveOption.className = "visualization-option";
+  const audioWaveCheckbox: HTMLInputElement = document.createElement("input");
+  audioWaveCheckbox.type = "checkbox";
+  audioWaveCheckbox.className = "form-check-input";
+  audioWaveCheckbox.setAttribute("aria-label", "Audio wave");
+  audioWaveOption.append(audioWaveCheckbox, document.createTextNode("Audio wave"));
+
+  const playedKeysOption: HTMLLabelElement = document.createElement("label");
+  playedKeysOption.className = "visualization-option";
+  const playedKeysCheckbox: HTMLInputElement = document.createElement("input");
+  playedKeysCheckbox.type = "checkbox";
+  playedKeysCheckbox.className = "form-check-input";
+  playedKeysCheckbox.setAttribute("aria-label", "Played keys");
+  playedKeysOption.append(playedKeysCheckbox, document.createTextNode("Played keys"));
+
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "visualization-settings-actions";
+  const closeButton: HTMLButtonElement = document.createElement("button");
+  closeButton.type = "submit";
+  closeButton.className = "btn btn-primary";
+  closeButton.textContent = "Done";
+  actions.append(closeButton);
+
+  form.append(audioWaveOption, playedKeysOption, actions);
+  dialog.append(title, form);
+  button.addEventListener("click", (): void => dialog.showModal());
+  return { button, dialog, audioWaveCheckbox, playedKeysCheckbox };
+}
+
+/**
+ * Creates the application header and its volume and visualization settings controls.
+ * @returns Header elements and controls used by the app view and controller.
+ */
+function createAppHeader(): AppHeaderView {
+  const element: HTMLElement = document.createElement("header");
+  element.className = "app-header";
+  const brand: HTMLDivElement = createBrand();
+  const volumeControl: VolumeControlView = createVolumeControl();
+  const visualizationSettings: VisualizationSettingsView = createVisualizationSettings();
+  element.append(brand, volumeControl.element, visualizationSettings.button);
+  return {
+    element,
+    volumeInput: volumeControl.input,
+    volumeOutput: volumeControl.output,
+    ...visualizationSettings,
+  };
+}
+
+function createGameNavigation(): GameNavigationView {
+  const gameButton: HTMLButtonElement = document.createElement("button");
+  gameButton.type = "button";
+  gameButton.textContent = "Note sequence game";
+  const chordGameButton: HTMLButtonElement = document.createElement("button");
+  chordGameButton.type = "button";
+  chordGameButton.textContent = "Chord and notes game";
+  const scaleGameButton: HTMLButtonElement = document.createElement("button");
+  scaleGameButton.type = "button";
+  scaleGameButton.textContent = "Scale guessing game";
+  const element: HTMLElement = document.createElement("nav");
+  element.className = "game-navigation";
+  element.setAttribute("aria-label", "Learning games");
+  for (const button of [gameButton, chordGameButton, scaleGameButton]) {
+    button.className = "btn btn-outline-primary";
+  }
+  element.append(gameButton, chordGameButton, scaleGameButton);
+  return { element, gameButton, chordGameButton, scaleGameButton };
+}
+
+function createKeyboardSizeControl(): KeyboardSizeControlView {
+  const element: HTMLLabelElement = document.createElement("label");
+  element.htmlFor = "key-count";
+  element.textContent = "Number of keys (1–88)";
+  const input: HTMLInputElement = document.createElement("input");
+  input.id = "key-count";
+  input.type = "number";
+  input.className = "form-control";
+  input.min = "1";
+  input.max = "88";
+  input.step = "1";
+  input.value = "88";
+  input.required = true;
+  element.append(input);
+  return { element, input };
+}
+
+function createWaveformSelect(): HTMLSelectElement {
+  const select: HTMLSelectElement = document.createElement("select");
+  select.id = "sound-source";
+  select.className = "form-select";
+  const waveformOptions: ReadonlyArray<readonly [string, string]> = [
+    ["sine", "Sine"],
+    ["square", "Square"],
+    ["sawtooth", "Sawtooth"],
+  ];
+  for (const [value, labelText] of waveformOptions) {
+    const option: HTMLOptionElement = document.createElement("option");
+    option.value = value;
+    option.textContent = labelText;
+    select.append(option);
+  }
+  return select;
+}
+
+function createMetaAudioMenu(): MetaAudioMenuView {
+  const metaOptions: ReadonlyArray<readonly [string, string]> = [
+    ["meta-piano", "Piano"],
+    ["meta-nylon-guitar", "Nylon guitar"],
+    ["meta-steel-guitar", "Steel guitar"],
+  ];
+  const element: HTMLDetailsElement = document.createElement("details");
+  element.className = "audio-source-menu";
+  const summary: HTMLElement = document.createElement("summary");
+  summary.textContent = "Meta audio";
+  const submenu: HTMLDivElement = document.createElement("div");
+  submenu.className = "audio-source-submenu";
+  const buttons: HTMLButtonElement[] = [];
+  for (const [value, labelText] of metaOptions) {
+    const button: HTMLButtonElement = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-outline-secondary";
+    button.value = value;
+    button.textContent = labelText;
+    button.setAttribute("aria-pressed", "false");
+    buttons.push(button);
+    submenu.append(button);
+  }
+  element.append(summary, submenu);
+  element.addEventListener("pointerenter", (): void => {
+    element.open = true;
+  });
+  element.addEventListener("pointerleave", (): void => {
+    if (!element.contains(document.activeElement)) {
+      element.open = false;
+    }
+  });
+  element.addEventListener("focusin", (): void => {
+    element.open = true;
+  });
+  element.addEventListener("focusout", (event: FocusEvent): void => {
+    if (!(event.relatedTarget instanceof Node) || !element.contains(event.relatedTarget)) {
+      element.open = false;
+    }
+  });
+  return { element, buttons };
+}
+
+function createCustomSamplePanel(): CustomSamplePanelView {
+  const element: HTMLDivElement = document.createElement("div");
+  element.className = "custom-sample-panel";
+  element.hidden = true;
+  const urlLabel: HTMLLabelElement = document.createElement("label");
+  urlLabel.htmlFor = "custom-sample-url";
+  urlLabel.textContent = "Sample directory URL";
+  const urlInput: HTMLInputElement = document.createElement("input");
+  urlInput.id = "custom-sample-url";
+  urlInput.type = "url";
+  urlInput.className = "form-control";
+  urlInput.placeholder =
+    "https://github.com/owner/repository/tree/main/path/to/samples";
+  urlLabel.append(urlInput);
+  const loadButton: HTMLButtonElement = document.createElement("button");
+  loadButton.type = "button";
+  loadButton.className = "btn btn-outline-secondary";
+  loadButton.textContent = "Use sample directory";
+  element.append(urlLabel, loadButton);
+  return { element, urlInput, loadButton };
+}
+
+/**
+ * Creates the sound source selector and the associated sample controls.
+ * @returns The source selector, instrument menu, and custom sample panel.
+ */
+function createAudioSourceControls(): AudioSourceControlsView {
+  const sourceLabel: HTMLLabelElement = document.createElement("label");
+  sourceLabel.htmlFor = "sound-source";
+  sourceLabel.textContent = "Waveform";
+  const sourceSelect: HTMLSelectElement = createWaveformSelect();
+  sourceLabel.append(sourceSelect);
+  const metaAudioMenu: MetaAudioMenuView = createMetaAudioMenu();
+  const customSourceButton: HTMLButtonElement = document.createElement("button");
+  customSourceButton.type = "button";
+  customSourceButton.className = "btn btn-outline-secondary custom-source-button";
+  customSourceButton.textContent = "Custom samples…";
+  customSourceButton.setAttribute("aria-pressed", "false");
+  const customSamplePanel: CustomSamplePanelView = createCustomSamplePanel();
+  return {
+    sourceLabel,
+    sourceSelect,
+    metaAudioMenu,
+    customSourceButton,
+    customSamplePanel,
+  };
+}
+
+/**
+ * Creates the keyboard settings form and exposes its interactive controls.
+ * @returns The form and controls used by the application controller.
+ */
+function createKeyboardControls(): KeyboardControlsView {
+  const form: HTMLFormElement = document.createElement("form");
+  form.className = "app-controls";
+  const keyCountControl: KeyboardSizeControlView = createKeyboardSizeControl();
+  const audioSourceControls: AudioSourceControlsView = createAudioSourceControls();
+  const updateButton: HTMLButtonElement = document.createElement("button");
+  updateButton.type = "submit";
+  updateButton.className = "btn btn-primary";
+  updateButton.textContent = "Update keyboard";
+  form.append(
+    keyCountControl.element,
+    audioSourceControls.sourceLabel,
+    audioSourceControls.metaAudioMenu.element,
+    audioSourceControls.customSourceButton,
+    audioSourceControls.customSamplePanel.element,
+    updateButton,
+  );
+  return {
+    form,
+    keyCountInput: keyCountControl.input,
+    sourceSelect: audioSourceControls.sourceSelect,
+    metaAudioButtons: audioSourceControls.metaAudioMenu.buttons,
+    customSourceButton: audioSourceControls.customSourceButton,
+    customSamplePanel: audioSourceControls.customSamplePanel.element,
+    customSampleUrlInput: audioSourceControls.customSamplePanel.urlInput,
+    loadCustomSamplesButton: audioSourceControls.customSamplePanel.loadButton,
+  };
+}
+
+function createKeyboardStatus(): KeyboardStatusView {
+  const instructions: HTMLParagraphElement = document.createElement("p");
+  instructions.textContent =
+    "Hold a key with the mouse to play it. Notes stop on release unless the release envelope is increased.";
+  const frequencyOutput: HTMLOutputElement = document.createElement("output");
+  frequencyOutput.textContent = "Hover over a key to see its frequency.";
+  frequencyOutput.setAttribute("aria-live", "polite");
+  const soundStatus: HTMLOutputElement = document.createElement("output");
+  soundStatus.className = "app-sound-status";
+  soundStatus.setAttribute("aria-live", "polite");
+  soundStatus.textContent = "Choose a waveform or sample source.";
+  return { instructions, frequencyOutput, soundStatus };
+}
+
+/**
+ * Creates the keyboard screen and combines its controls, status, and game navigation.
+ * @param envelopeView The envelope control view to include.
+ * @param gameNavigation The navigation for the available learning games.
+ * @returns The keyboard screen and its controller-facing elements.
+ */
+function createKeyboardScreen(
+  envelopeView: EnvelopeView,
+  gameNavigation: GameNavigationView,
+): KeyboardScreenView {
+  const element: HTMLElement = document.createElement("section");
+  element.className = "app-card";
+  const heading: HTMLHeadingElement = document.createElement("h1");
+  heading.textContent = "Musical keyboard";
+  const controls: KeyboardControlsView = createKeyboardControls();
+  const status: KeyboardStatusView = createKeyboardStatus();
+  const keyboardContainer: HTMLDivElement = document.createElement("div");
+  element.append(
+    gameNavigation.element,
+    heading,
+    controls.form,
+    envelopeView.element,
+    status.instructions,
+    status.soundStatus,
+    status.frequencyOutput,
+    keyboardContainer,
+  );
+  return {
+    element,
+    ...controls,
+    ...status,
+    keyboardContainer,
+  };
+}
+
+function createVisualizations(): AppVisualizationsView {
+  const element: HTMLElement = document.createElement("aside");
+  element.className = "app-visualizations";
+  element.setAttribute("aria-label", "Audio visualizations");
+  const audioWave: VisualizationPanelView = createAudioWavePanel();
+  const playedKeys: VisualizationPanelView = createPlayedKeysPanel();
+  element.append(audioWave.panel, playedKeys.panel);
+  return { element, audioWave, playedKeys };
+}
+
+function createAudioWavePanel(): VisualizationPanelView {
+  const panel: HTMLElement = document.createElement("section");
+  panel.id = "audio-wave-panel";
+  panel.className = "visualization-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Audio wave");
+  const heading: HTMLHeadingElement = document.createElement("h2");
+  heading.textContent = "Audio wave";
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+  canvas.id = "audio-wave-canvas";
+  canvas.width = 640;
+  canvas.height = 200;
+  canvas.setAttribute("aria-label", "Currently played audio waveform");
+  panel.append(heading, canvas);
+  return { panel, canvas };
+}
+
+function createPlayedKeysPanel(): VisualizationPanelView {
+  const panel: HTMLElement = document.createElement("section");
+  panel.id = "played-keys-panel";
+  panel.className = "visualization-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Played keys");
+  const heading: HTMLHeadingElement = document.createElement("h2");
+  heading.textContent = "Played keys";
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+  canvas.id = "played-keys-canvas";
+  canvas.width = 640;
+  canvas.height = 200;
+  canvas.setAttribute("aria-label", "Currently played piano keys");
+  panel.append(heading, canvas);
+  return { panel, canvas };
+}
+
 /**
  * Builds the main application view and its audio source controls.
  * @param envelopeView The envelope control view to include in the application.
  * @returns The application view elements and controls.
  */
 export function createAppView(envelopeView: EnvelopeView): AppView {
-  const styles: HTMLStyleElement = document.createElement("style");
+  const styles: HTMLStyleElement = createStyleElement();
   styles.textContent = `
     :root {
       --bs-primary: #6558c8;
@@ -89,6 +559,67 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       color: #74758c;
       font-size: 0.8rem;
       min-width: 2.5rem;
+    }
+    .visualization-settings-dialog {
+      border: 0;
+      border-radius: 1rem;
+      box-shadow: 0 18px 48px #29316a33;
+      color: #20233a;
+      max-width: calc(100vw - 2rem);
+      padding: 1.5rem;
+      width: 26rem;
+    }
+    .visualization-settings-dialog::backdrop {
+      background: #20233a66;
+    }
+    .visualization-settings-dialog h2 {
+      font-size: 1.25rem;
+      margin: 0 0 1.25rem;
+    }
+    .visualization-option {
+      align-items: center;
+      display: flex;
+      font-weight: 500;
+      gap: 0.65rem;
+      margin-bottom: 0.8rem;
+    }
+    .visualization-option input {
+      margin: 0;
+    }
+    .visualization-settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.25rem;
+    }
+    .app-visualizations {
+      display: grid;
+      gap: 0.75rem;
+      pointer-events: none;
+      position: fixed;
+      right: 1rem;
+      top: 6rem;
+      width: min(22rem, calc(100vw - 2rem));
+      z-index: 10;
+    }
+    .visualization-panel {
+      background: #fff;
+      border: 1px solid #e7e8f0;
+      border-radius: 0.85rem;
+      box-shadow: 0 10px 28px #29316a18;
+      overflow: hidden;
+      padding: 0.75rem;
+      pointer-events: auto;
+    }
+    .visualization-panel h2 {
+      color: #4a4b64;
+      font-size: 0.85rem;
+      font-weight: 650;
+      margin: 0 0 0.5rem;
+    }
+    .visualization-panel canvas {
+      display: block;
+      height: auto;
+      width: 100%;
     }
     .app-card {
       background: #fff;
@@ -313,6 +844,11 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       .app-volume-control input {
         width: 6rem;
       }
+      .app-visualizations {
+        right: 0.5rem;
+        top: 8.5rem;
+        width: min(18rem, calc(100vw - 1rem));
+      }
       .custom-sample-panel input {
         min-width: 0;
         width: 100%;
@@ -321,214 +857,41 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
   `;
   document.head.append(styles);
 
-  const app: HTMLElement = document.createElement("main");
-  app.className = "container app-shell";
-  const header: HTMLElement = document.createElement("header");
-  header.className = "app-header";
-  const brand: HTMLDivElement = document.createElement("div");
-  brand.className = "app-brand";
-  const brandLabel: HTMLSpanElement = document.createElement("span");
-  brandLabel.textContent = "LISTEN · LEARN · PLAY";
-  const brandName: HTMLElement = document.createElement("strong");
-  brandName.textContent = "Learning by Ear";
-  brand.append(brandLabel, brandName);
-  const volumeControl: HTMLDivElement = document.createElement("div");
-  volumeControl.className = "app-volume-control";
-  const volumeLabel: HTMLLabelElement = document.createElement("label");
-  volumeLabel.htmlFor = "app-volume";
-  volumeLabel.textContent = "Volume";
-  const volumeInput: HTMLInputElement = document.createElement("input");
-  volumeInput.id = "app-volume";
-  volumeInput.type = "range";
-  volumeInput.min = "0";
-  volumeInput.max = "100";
-  volumeInput.step = "1";
-  volumeInput.value = "70";
-  volumeInput.className = "form-range";
-  volumeInput.setAttribute("aria-label", "Volume");
-  const volumeOutput: HTMLOutputElement = document.createElement("output");
-  volumeOutput.textContent = `${volumeInput.value}%`;
-  volumeLabel.append(volumeInput, volumeOutput);
-  volumeControl.append(volumeLabel);
+  const app: HTMLElement = createAppRoot();
+  const header: AppHeaderView = createAppHeader();
 
-  const gameButton: HTMLButtonElement = document.createElement("button");
-  gameButton.type = "button";
-  gameButton.textContent = "Note sequence game";
-  const chordGameButton: HTMLButtonElement = document.createElement("button");
-  chordGameButton.type = "button";
-  chordGameButton.textContent = "Chord and notes game";
-  const scaleGameButton: HTMLButtonElement = document.createElement("button");
-  scaleGameButton.type = "button";
-  scaleGameButton.textContent = "Scale guessing game";
-  const gameNavigation: HTMLElement = document.createElement("nav");
-  gameNavigation.className = "game-navigation";
-  gameNavigation.setAttribute("aria-label", "Learning games");
-  for (const button of [gameButton, chordGameButton, scaleGameButton]) {
-    button.className = "btn btn-outline-primary";
-  }
-  gameNavigation.append(gameButton, chordGameButton, scaleGameButton);
-
-  const keyboardScreen: HTMLElement = document.createElement("section");
-  keyboardScreen.className = "app-card";
-  const heading: HTMLHeadingElement = document.createElement("h1");
-  heading.textContent = "Musical keyboard";
-
-  const form: HTMLFormElement = document.createElement("form");
-  form.className = "app-controls";
-  const sizeLabel: HTMLLabelElement = document.createElement("label");
-  sizeLabel.htmlFor = "key-count";
-  sizeLabel.textContent = "Number of keys (1–88)";
-
-  const keyCountInput: HTMLInputElement = document.createElement("input");
-  keyCountInput.id = "key-count";
-  keyCountInput.type = "number";
-  keyCountInput.className = "form-control";
-  keyCountInput.min = "1";
-  keyCountInput.max = "88";
-  keyCountInput.step = "1";
-  keyCountInput.value = "88";
-  keyCountInput.required = true;
-  sizeLabel.append(keyCountInput);
-
-  const sourceLabel: HTMLLabelElement = document.createElement("label");
-  sourceLabel.htmlFor = "sound-source";
-  sourceLabel.textContent = "Waveform";
-  const sourceSelect: HTMLSelectElement = document.createElement("select");
-  sourceSelect.id = "sound-source";
-  sourceSelect.className = "form-select";
-  const waveformOptions: ReadonlyArray<readonly [string, string]> = [
-    ["sine", "Sine"],
-    ["square", "Square"],
-    ["sawtooth", "Sawtooth"],
-  ];
-  for (const [value, labelText] of waveformOptions) {
-    const option: HTMLOptionElement = document.createElement("option");
-    option.value = value;
-    option.textContent = labelText;
-    sourceSelect.append(option);
-  }
-  const metaOptions: ReadonlyArray<readonly [string, string]> = [
-    ["meta-piano", "Piano"],
-    ["meta-nylon-guitar", "Nylon guitar"],
-    ["meta-steel-guitar", "Steel guitar"],
-  ];
-  const metaAudioMenu: HTMLDetailsElement = document.createElement("details");
-  metaAudioMenu.className = "audio-source-menu";
-  const metaAudioSummary: HTMLElement = document.createElement("summary");
-  metaAudioSummary.textContent = "Meta audio";
-  const metaAudioSubmenu: HTMLDivElement = document.createElement("div");
-  metaAudioSubmenu.className = "audio-source-submenu";
-  const metaAudioButtons: HTMLButtonElement[] = [];
-  for (const [value, labelText] of metaOptions) {
-    const button: HTMLButtonElement = document.createElement("button");
-    button.type = "button";
-    button.className = "btn btn-outline-secondary";
-    button.value = value;
-    button.textContent = labelText;
-    button.setAttribute("aria-pressed", "false");
-    metaAudioButtons.push(button);
-    metaAudioSubmenu.append(button);
-  }
-  metaAudioMenu.append(metaAudioSummary, metaAudioSubmenu);
-  metaAudioMenu.addEventListener("pointerenter", (): void => {
-    metaAudioMenu.open = true;
-  });
-  metaAudioMenu.addEventListener("pointerleave", (): void => {
-    if (!metaAudioMenu.contains(document.activeElement)) {
-      metaAudioMenu.open = false;
-    }
-  });
-  metaAudioMenu.addEventListener("focusin", (): void => {
-    metaAudioMenu.open = true;
-  });
-  metaAudioMenu.addEventListener("focusout", (event: FocusEvent): void => {
-    if (!(event.relatedTarget instanceof Node) || !metaAudioMenu.contains(event.relatedTarget)) {
-      metaAudioMenu.open = false;
-    }
-  });
-  sourceLabel.append(sourceSelect);
-  const customSourceButton: HTMLButtonElement = document.createElement("button");
-  customSourceButton.type = "button";
-  customSourceButton.className = "btn btn-outline-secondary custom-source-button";
-  customSourceButton.textContent = "Custom samples…";
-  customSourceButton.setAttribute("aria-pressed", "false");
-
-  const customSamplePanel: HTMLDivElement = document.createElement("div");
-  customSamplePanel.className = "custom-sample-panel";
-  customSamplePanel.hidden = true;
-  const customSampleUrlLabel: HTMLLabelElement = document.createElement("label");
-  customSampleUrlLabel.htmlFor = "custom-sample-url";
-  customSampleUrlLabel.textContent = "Sample directory URL";
-  const customSampleUrlInput: HTMLInputElement = document.createElement("input");
-  customSampleUrlInput.id = "custom-sample-url";
-  customSampleUrlInput.type = "url";
-  customSampleUrlInput.className = "form-control";
-  customSampleUrlInput.placeholder =
-    "https://github.com/owner/repository/tree/main/path/to/samples";
-  customSampleUrlLabel.append(customSampleUrlInput);
-  const loadCustomSamplesButton: HTMLButtonElement = document.createElement("button");
-  loadCustomSamplesButton.type = "button";
-  loadCustomSamplesButton.className = "btn btn-outline-secondary";
-  loadCustomSamplesButton.textContent = "Use sample directory";
-  customSamplePanel.append(customSampleUrlLabel, loadCustomSamplesButton);
-
-  const updateButton: HTMLButtonElement = document.createElement("button");
-  updateButton.type = "submit";
-  updateButton.className = "btn btn-primary";
-  updateButton.textContent = "Update keyboard";
-  form.append(
-    sizeLabel,
-    sourceLabel,
-    metaAudioMenu,
-    customSourceButton,
-    customSamplePanel,
-    updateButton,
-  );
-
-  const instructions: HTMLParagraphElement = document.createElement("p");
-  instructions.textContent =
-    "Hold a key with the mouse to play it. Notes stop on release unless the release envelope is increased.";
-  const frequencyOutput: HTMLOutputElement = document.createElement("output");
-  frequencyOutput.textContent = "Hover over a key to see its frequency.";
-  frequencyOutput.setAttribute("aria-live", "polite");
-  const soundStatus: HTMLOutputElement = document.createElement("output");
-  soundStatus.className = "app-sound-status";
-  soundStatus.setAttribute("aria-live", "polite");
-  soundStatus.textContent = "Choose a waveform or sample source.";
-
-  const keyboardContainer: HTMLDivElement = document.createElement("div");
-  keyboardScreen.append(
-    gameNavigation,
-    heading,
-    form,
-    envelopeView.element,
-    instructions,
-    soundStatus,
-    frequencyOutput,
-    keyboardContainer,
-  );
-  header.append(brand, volumeControl);
-  app.append(header, keyboardScreen);
+  const gameNavigation: GameNavigationView = createGameNavigation();
+  const keyboardScreen: KeyboardScreenView = createKeyboardScreen(envelopeView, gameNavigation);
+  const visualizations: AppVisualizationsView = createVisualizations();
+  app.append(header.element, keyboardScreen.element, visualizations.element, header.dialog);
   document.body.replaceChildren(app);
 
   return {
     element: app,
-    keyboardScreen,
-    gameButton,
-    chordGameButton,
-    scaleGameButton,
-    volumeInput,
-    volumeOutput,
-    form,
-    keyCountInput,
-    sourceSelect,
-    metaAudioButtons,
-    customSourceButton,
-    customSamplePanel,
-    customSampleUrlInput,
-    loadCustomSamplesButton,
-    soundStatus,
-    frequencyOutput,
-    keyboardContainer,
+    keyboardScreen: keyboardScreen.element,
+    gameButton: gameNavigation.gameButton,
+    chordGameButton: gameNavigation.chordGameButton,
+    scaleGameButton: gameNavigation.scaleGameButton,
+    volumeInput: header.volumeInput,
+    volumeOutput: header.volumeOutput,
+    visualizationSettingsButton: header.button,
+    visualizationDialog: header.dialog,
+    audioWaveCheckbox: header.audioWaveCheckbox,
+    playedKeysCheckbox: header.playedKeysCheckbox,
+    audioWavePanel: visualizations.audioWave.panel,
+    playedKeysPanel: visualizations.playedKeys.panel,
+    audioWaveCanvas: visualizations.audioWave.canvas,
+    playedKeysCanvas: visualizations.playedKeys.canvas,
+    form: keyboardScreen.form,
+    keyCountInput: keyboardScreen.keyCountInput,
+    sourceSelect: keyboardScreen.sourceSelect,
+    metaAudioButtons: keyboardScreen.metaAudioButtons,
+    customSourceButton: keyboardScreen.customSourceButton,
+    customSamplePanel: keyboardScreen.customSamplePanel,
+    customSampleUrlInput: keyboardScreen.customSampleUrlInput,
+    loadCustomSamplesButton: keyboardScreen.loadCustomSamplesButton,
+    soundStatus: keyboardScreen.soundStatus,
+    frequencyOutput: keyboardScreen.frequencyOutput,
+    keyboardContainer: keyboardScreen.keyboardContainer,
   };
 }

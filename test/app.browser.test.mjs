@@ -60,6 +60,31 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
 
     await page.goto(`http://127.0.0.1:${address.port}/`);
     await page.getByRole("heading", { name: "Musical keyboard" }).waitFor();
+    const settingsButton = page.getByRole("button", { name: "Visualization settings" });
+    const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
+    assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);
+    assert.equal(await page.locator("#played-keys-panel").isVisible(), false);
+    assert.equal(await settingsDialog.isVisible(), false);
+    await settingsButton.click();
+    assert.equal(await settingsDialog.isVisible(), true);
+    await settingsDialog.getByRole("checkbox", { name: "Audio wave" }).check();
+    await settingsDialog.getByRole("checkbox", { name: "Played keys" }).check();
+    assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
+    assert.equal(await page.locator("#played-keys-panel").isVisible(), true);
+    const waveformPixel = await page.locator("#audio-wave-canvas").evaluate((canvas) => {
+      const context = canvas.getContext("2d");
+      return Array.from(context.getImageData(320, 100, 1, 1).data);
+    });
+    assert.deepEqual(waveformPixel, [40, 120, 208, 255]);
+    const visualizationBounds = await page.locator("#audio-wave-panel").evaluate((panel) => {
+      const bounds = panel.getBoundingClientRect();
+      return { right: bounds.right, top: bounds.top };
+    });
+    assert.ok(visualizationBounds.right <= await page.evaluate(() => window.innerWidth));
+    assert.ok(visualizationBounds.top < 200, "visualization appears at the top of the window");
+    await settingsDialog.getByRole("button", { name: "Done" }).click();
+    assert.equal(await settingsDialog.isVisible(), false);
+
     const keyboard = page.locator("main > section").first();
     assert.equal(await keyboard.locator(".piano-key").count(), 88);
     const c3Key = keyboard.getByRole("button", { name: "C3", exact: true });
@@ -105,6 +130,33 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
         `${note}: expected ${expectedFrequency} Hz, got ${captured[index].frequency} Hz`,
       );
     }
+    const c4Key = keyboard.getByRole("button", { name: "C4", exact: true });
+    await c4Key.hover();
+    await page.mouse.down();
+    await page.waitForTimeout(150);
+    const playedKeyPixel = await page.locator("#played-keys-canvas").evaluate((canvas) => {
+      const context = canvas.getContext("2d");
+      return Array.from(context.getImageData(320, 10, 1, 1).data);
+    });
+    assert.ok(playedKeyPixel[3] > 0, "currently played keys should be drawn");
+    const hasOscillatingWave = await page.locator("#audio-wave-canvas").evaluate((canvas) => {
+      const context = canvas.getContext("2d");
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let y = 0; y < canvas.height; y += 1) {
+        if (Math.abs(y - canvas.height / 2) <= 3) {
+          continue;
+        }
+        for (let x = 0; x < canvas.width; x += 4) {
+          const offset = (y * canvas.width + x) * 4;
+          if (pixels[offset] === 40 && pixels[offset + 1] === 120 && pixels[offset + 2] === 208) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+    assert.equal(hasOscillatingWave, true, "audio wave should update while a note is held");
+    await page.mouse.up();
     assert.deepEqual(pageErrors, []);
   } finally {
     await browser?.close();
