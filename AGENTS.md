@@ -49,6 +49,12 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 - Keep each audio visualization implementation in its own 1-3 word kebab-case directory under `audio-visualization/`, for example `audio-visualization/audio-wave/` and `audio-visualization/played-keys/`.
 - Keep shared visualization interfaces and helpers directly under `audio-visualization/`; do not combine separate visualization implementations into one directory or file.
 
+## Keyboard input
+
+- Keep the shared musical-keyboard-input interface and its callback/target types in `musical-keyboard-input/keyboard-input.ts`.
+- Keep each input source implementation in its own directory under `musical-keyboard-input/`, such as `musical-keyboard-input/computer-keyboard/` and `musical-keyboard-input/mouse/`. Keep source-specific key mappings in that source's directory.
+- Route input through the shared interface instead of adding source-specific event listeners to the keyboard renderer. Add future sources, such as MIDI, as separate implementations of that interface.
+
 ## Testing
 
 - Create or update a test when changing a method that starts, stops, restarts, schedules, seeks, buffers, or exposes state for audio playback.

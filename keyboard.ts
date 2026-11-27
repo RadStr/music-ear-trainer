@@ -1,7 +1,15 @@
+import { MouseKeyboardInput } from "./musical-keyboard-input/mouse/mouse-keyboard-input";
+import type {
+  KeyboardInput,
+  KeyboardInputCallbacks,
+  KeyboardInputTarget,
+} from "./musical-keyboard-input/keyboard-input";
+
 const WHITE_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 2, 4, 5, 7, 9, 11]);
 const NOTE_NAMES: readonly string[] = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 const C3_MIDI_NOTE: number = 48;
 
+/** Returns the note label for a non-negative MIDI note number. */
 export function midiNoteName(midiNote: number): string {
   if (!Number.isInteger(midiNote) || midiNote < 0) {
     throw new RangeError("The MIDI note must be a non-negative integer.");
@@ -14,8 +22,8 @@ export function midiNoteName(midiNote: number): string {
 }
 
 export interface KeyboardCallbacks {
-  readonly onPress: (midiNote: number) => void;
-  readonly onRelease: (midiNote: number) => void;
+  readonly onPress: (midiNote: number, inputId: string) => void;
+  readonly onRelease: (midiNote: number, inputId: string) => void;
   readonly getPlayedNotes?: (midiNote: number) => readonly number[];
   readonly onHover: (midiNote: number, noteName: string) => void;
   readonly onLeave: () => void;
@@ -31,11 +39,20 @@ const KEYBOARD_EVENT_CONTROLLERS: WeakMap<HTMLElement, AbortController> = new We
   AbortController
 >();
 
+/**
+ * Renders a piano keyboard and connects the requested input sources.
+ * @param container The element that receives the rendered keyboard.
+ * @param keyCount The number of consecutive MIDI notes to render.
+ * @param callbacks Handlers for notes, highlights, and hovering.
+ * @param firstMidiNote The MIDI note represented by the first rendered key.
+ * @param inputs The mouse and/or computer-keyboard input sources to connect.
+ */
 export function renderKeyboard(
   container: HTMLElement,
   keyCount: number,
   callbacks: KeyboardCallbacks,
   firstMidiNote: number = 21,
+  inputs: readonly KeyboardInput[] = [new MouseKeyboardInput()],
 ): void {
   if (!Number.isInteger(keyCount) || keyCount < 1) {
     throw new RangeError("The keyboard must contain at least one key.");
@@ -107,9 +124,6 @@ export function renderKeyboard(
   }
 
   const viewport: HTMLDivElement = document.createElement("div");
-  KEYBOARD_EVENT_CONTROLLERS.get(container)?.abort();
-  const eventController: AbortController = new AbortController();
-  KEYBOARD_EVENT_CONTROLLERS.set(container, eventController);
   viewport.className = "keyboard-viewport";
 
   const keyboard: HTMLDivElement = document.createElement("div");
@@ -118,10 +132,7 @@ export function renderKeyboard(
   keyboard.setAttribute("aria-label", "Musical keyboard");
   keyboard.style.width = `max(100%, ${layoutWhiteKeyCount * 42}px)`;
 
-  const pressedKeys: Map<HTMLButtonElement, PressedKeyState> = new Map<
-    HTMLButtonElement,
-    PressedKeyState
-  >();
+  const pressedInputs: Map<string, PressedKeyState> = new Map<string, PressedKeyState>();
   const keysByMidiNote: Map<number, HTMLButtonElement> = new Map<
     number,
     HTMLButtonElement
@@ -143,38 +154,40 @@ export function renderKeyboard(
       highlightedNoteCounts.set(midiNote, currentCount - 1);
     }
   };
-  const pressKey = (key: HTMLButtonElement, midiNote: number): void => {
+  const pressKey = (midiNote: number, inputId: string): void => {
+    if (pressedInputs.has(inputId)) {
+      return;
+    }
     const playedNotes: readonly number[] = callbacks.getPlayedNotes?.(midiNote) ?? [midiNote];
     const highlightedNotes: readonly number[] = Array.from(
       new Set<number>([midiNote, ...playedNotes]),
     );
-    pressedKeys.set(key, { midiNote, highlightedNotes });
+    pressedInputs.set(inputId, { midiNote, highlightedNotes });
     for (const highlightedNote of highlightedNotes) {
       updateNoteHighlight(highlightedNote, true);
     }
+    callbacks.onPress(midiNote, inputId);
   };
-  const releasePressedKey = (key: HTMLButtonElement): void => {
-    const pressedKey: PressedKeyState | undefined = pressedKeys.get(key);
+  const releasePressedInput = (inputId: string): void => {
+    const pressedKey: PressedKeyState | undefined = pressedInputs.get(inputId);
     if (!pressedKey) {
       return;
     }
-    pressedKeys.delete(key);
+    pressedInputs.delete(inputId);
     for (const highlightedNote of pressedKey.highlightedNotes) {
       updateNoteHighlight(highlightedNote, false);
     }
-    callbacks.onRelease(pressedKey.midiNote);
+    callbacks.onRelease(pressedKey.midiNote, inputId);
   };
-  const releasePressedKeys = (): void => {
-    for (const key of Array.from(pressedKeys.keys())) {
-      releasePressedKey(key);
+  const releasePressedInputs = (): void => {
+    for (const inputId of Array.from(pressedInputs.keys())) {
+      releasePressedInput(inputId);
     }
   };
-  document.addEventListener("mouseup", releasePressedKeys, {
-    signal: eventController.signal,
-  });
-  window.addEventListener("blur", releasePressedKeys, {
-    signal: eventController.signal,
-  });
+  const eventController: AbortController = new AbortController();
+  eventController.signal.addEventListener("abort", releasePressedInputs, { once: true });
+  KEYBOARD_EVENT_CONTROLLERS.get(container)?.abort();
+  KEYBOARD_EVENT_CONTROLLERS.set(container, eventController);
 
   let whiteKeyIndex: number = 0;
   for (const midiNote of midiNotes) {
@@ -197,43 +210,28 @@ export function renderKeyboard(
       key.style.width = `${blackKeyWidth}%`;
     }
 
-    key.addEventListener("mousedown", (event: MouseEvent): void => {
-      if (event.button !== 0 || pressedKeys.has(key)) {
-        return;
-      }
-      event.preventDefault();
-      pressKey(key, midiNote);
-      callbacks.onPress(midiNote);
-    });
-    key.addEventListener("mouseenter", (_event: MouseEvent): void => {
-      if (_event.buttons === 1) {
-        const pressedEntry: [HTMLButtonElement, PressedKeyState] | undefined =
-          Array.from(pressedKeys.entries()).find(
-            ([pressedKey]: [HTMLButtonElement, PressedKeyState]): boolean =>
-              pressedKey !== key,
-          );
-        if (pressedEntry) {
-          const [pressedKey]: [HTMLButtonElement, PressedKeyState] = pressedEntry;
-          pressKey(key, midiNote);
-          callbacks.onPress(midiNote);
-          releasePressedKey(pressedKey);
-          callbacks.onHover(midiNote, noteName);
-          return;
-        }
-      }
-      callbacks.onHover(midiNote, noteName);
-    });
-    key.addEventListener("mouseleave", (_event: MouseEvent): void => {
-      if (pressedKeys.size === 0) {
-        callbacks.onLeave();
-      }
-    });
-
     keyboard.append(key);
   }
 
   viewport.append(keyboard);
   container.replaceChildren(viewport);
+  const inputCallbacks: KeyboardInputCallbacks = {
+    onPress: (midiNote: number, inputId: string): void => pressKey(midiNote, inputId),
+    onRelease: (inputId: string): void => releasePressedInput(inputId),
+    onHover: (midiNote: number): void =>
+      callbacks.onHover(midiNote, midiNoteName(midiNote)),
+    onLeave: (): void => callbacks.onLeave(),
+  };
+  const inputTarget: KeyboardInputTarget = {
+    keyboard,
+    keysByMidiNote,
+    callbacks: inputCallbacks,
+    signal: eventController.signal,
+  };
+  for (const input of inputs) {
+    input.connect(inputTarget);
+  }
+
   const c3Key: HTMLButtonElement | null =
     keyboard.querySelector<HTMLButtonElement>(`[aria-label="${midiNoteName(C3_MIDI_NOTE)}"]`);
   if (c3Key) {

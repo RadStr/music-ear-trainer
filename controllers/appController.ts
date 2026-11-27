@@ -13,6 +13,9 @@ import { SineIntersectionVisualization } from "../audio-visualization/sine-inter
 import { StaticIntersectionVisualization } from "../audio-visualization/static-intersection/static-intersection-visualization";
 import { PlayedKeysVisualization } from "../audio-visualization/played-keys/played-keys-visualization";
 import { CHORDS, NOTE_PITCH_CLASSES } from "../games/pitchGameData";
+import { ComputerKeyboardInput } from "../musical-keyboard-input/computer-keyboard/computer-keyboard-input";
+import { MouseKeyboardInput } from "../musical-keyboard-input/mouse/mouse-keyboard-input";
+import type { KeyboardInput } from "../musical-keyboard-input/keyboard-input";
 import type { AppView } from "../views/appView";
 import { renderKeyboard } from "../keyboard";
 import { CustomAudioController } from "./customAudioController";
@@ -36,8 +39,12 @@ export class AppController {
   private readonly envelopeController: EnvelopeController;
   private readonly metaAudioController: MetaAudioController;
   private readonly customAudioController: CustomAudioController;
-  private readonly activeVoices: Map<number, PlayingAudio> = new Map<number, PlayingAudio>();
+  private readonly activeVoices: Map<string, PlayingAudio> = new Map<string, PlayingAudio>();
   private readonly activeNoteCounts: Map<number, number> = new Map<number, number>();
+  private readonly keyboardInputs: readonly KeyboardInput[] = [
+    new MouseKeyboardInput(),
+    new ComputerKeyboardInput(),
+  ];
   private readonly audioWaveVisualization: AudioWaveVisualization;
   private readonly playedKeysVisualization: PlayedKeysVisualization;
   private readonly sineIntersectionVisualization: SineIntersectionVisualization;
@@ -152,21 +159,6 @@ export class AppController {
       }
       this.selectedChordId = selectedChordId;
       this.view.chordModeOutput.textContent = selectedOption.textContent;
-    });
-    window.addEventListener("pointerup", (event: PointerEvent): void => {
-      if (event.pointerType === "mouse") {
-        this.releaseAllVoices();
-      }
-    });
-    window.addEventListener("pointercancel", (event: PointerEvent): void => {
-      if (event.pointerType === "mouse") {
-        this.releaseAllVoices();
-      }
-    });
-    window.addEventListener("mouseup", (event: MouseEvent): void => {
-      if (event.button === 0) {
-        this.releaseAllVoices();
-      }
     });
     window.addEventListener("blur", (): void => this.releaseAllVoices());
 
@@ -299,19 +291,20 @@ export class AppController {
 
     this.view.keyCountInput.setCustomValidity("");
     renderKeyboard(this.view.keyboardContainer, keyCount, {
-      onPress: (midiNote: number): void => {
+      onPress: (midiNote: number, inputId: string): void => {
         const envelope: Envelope | undefined = this.envelopeController.getEnvelope();
         if (!envelope) {
           return;
         }
-        this.activeVoices.get(midiNote)?.release();
+        this.activeVoices.get(inputId)?.release();
         const voice: PlayingAudio = this.playNotes(
           this.getSelectedChordNotes(midiNote),
           envelope,
         );
-        this.activeVoices.set(midiNote, voice);
+        this.activeVoices.set(inputId, voice);
       },
-      onRelease: (midiNote: number): void => this.releaseVoice(midiNote),
+      onRelease: (_midiNote: number, inputId: string): void =>
+        this.releaseVoice(inputId),
       getPlayedNotes: (midiNote: number): readonly number[] =>
         this.getSelectedChordNotes(midiNote),
       onHover: (midiNote: number, noteName: string): void => {
@@ -321,7 +314,7 @@ export class AppController {
       onLeave: (): void => {
         this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
       },
-    });
+    }, 21, this.keyboardInputs);
   }
 
   private getSelectedChordIntervals(): readonly number[] {
@@ -442,9 +435,9 @@ export class AppController {
     }
   }
 
-  private releaseVoice(midiNote: number): void {
-    this.activeVoices.get(midiNote)?.release();
-    this.activeVoices.delete(midiNote);
+  private releaseVoice(inputId: string): void {
+    this.activeVoices.get(inputId)?.release();
+    this.activeVoices.delete(inputId);
   }
 
   private releaseAllVoices(): void {

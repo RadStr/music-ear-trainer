@@ -534,7 +534,7 @@ function createKeyboardControls(): KeyboardControlsView {
 function createKeyboardStatus(): KeyboardStatusView {
   const instructions: HTMLParagraphElement = document.createElement("p");
   instructions.textContent =
-    "Hold a key with the mouse to play it. Notes stop on release unless the release envelope is increased.";
+    "Hold a piano key with the mouse or use A, W, S, E, D, F, T, G, Y, H, U, J, K to play C3 through C4. Press X/C to lower/raise the octave. Notes stop on release unless the release envelope is increased.";
   const frequencyOutput: HTMLOutputElement = document.createElement("output");
   frequencyOutput.textContent = "Hover over a key to see its frequency.";
   frequencyOutput.setAttribute("aria-live", "polite");

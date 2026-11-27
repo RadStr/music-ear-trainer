@@ -127,6 +127,105 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     });
     assert.ok(Math.abs(c3Left - viewportLeft) < 1, "C3 should start at the viewport's left edge");
 
+    const oscillatorCountBeforeComputerInput = await page.evaluate(
+      () => window.__scheduledOscillators.length,
+    );
+    await page.keyboard.down("a");
+    assert.equal(
+      await c3Key.evaluate((key) => key.classList.contains("piano-key--pressed")),
+      true,
+      "A should press and highlight C3",
+    );
+    const c3Frequency = await page.evaluate(
+      () => window.__scheduledOscillators.at(-1)?.frequency,
+    );
+    assert.ok(
+      Math.abs(c3Frequency - 130.8127826502993) < 1e-9,
+      `A should play C3 at 130.81 Hz, got ${c3Frequency} Hz`,
+    );
+    await page.keyboard.up("a");
+    assert.equal(
+      await c3Key.evaluate((key) => key.classList.contains("piano-key--pressed")),
+      false,
+      "C3 highlight should clear when A is released",
+    );
+
+    await page.keyboard.press("w");
+    const cSharpFrequency = await page.evaluate(
+      () => window.__scheduledOscillators.at(-1)?.frequency,
+    );
+    assert.ok(
+      Math.abs(cSharpFrequency - 138.59131548843604) < 1e-9,
+      `W should play C♯3 at 138.59 Hz, got ${cSharpFrequency} Hz`,
+    );
+
+    await page.keyboard.down("x");
+    await page.keyboard.press("a");
+    await page.keyboard.up("x");
+    const lowerOctaveFrequency = await page.evaluate(
+      () => window.__scheduledOscillators.at(-1)?.frequency,
+    );
+    assert.ok(
+      Math.abs(lowerOctaveFrequency - 65.40639132514966) < 1e-9,
+      `X should shift A down to C2, got ${lowerOctaveFrequency} Hz`,
+    );
+    await page.keyboard.down("c");
+    await page.keyboard.press("a");
+    await page.keyboard.up("c");
+    const restoredOctaveFrequency = await page.evaluate(
+      () => window.__scheduledOscillators.at(-1)?.frequency,
+    );
+    assert.ok(
+      Math.abs(restoredOctaveFrequency - 130.8127826502993) < 1e-9,
+      `C should shift A back up to C3, got ${restoredOctaveFrequency} Hz`,
+    );
+    await page.keyboard.down("c");
+    await page.keyboard.press("a");
+    await page.keyboard.up("c");
+    const upperOctaveFrequency = await page.evaluate(
+      () => window.__scheduledOscillators.at(-1)?.frequency,
+    );
+    assert.ok(
+      Math.abs(upperOctaveFrequency - 261.6255653005986) < 1e-9,
+      `C should shift A up to C4, got ${upperOctaveFrequency} Hz`,
+    );
+    await page.keyboard.down("x");
+    await page.keyboard.press("a");
+    await page.keyboard.up("x");
+
+    const scheduledBeforeFocusedField = await page.evaluate(
+      () => window.__scheduledOscillators.length,
+    );
+    await page.locator("#key-count").focus();
+    await page.keyboard.press("a");
+    assert.equal(
+      await page.evaluate(() => window.__scheduledOscillators.length),
+      scheduledBeforeFocusedField,
+      "computer-keyboard notes should not intercept typing in form fields",
+    );
+
+    await page.locator("#key-count").blur();
+    await page.keyboard.down("a");
+    await c3Key.hover();
+    await page.mouse.down();
+    await page.mouse.up();
+    assert.equal(
+      await c3Key.evaluate((key) => key.classList.contains("piano-key--pressed")),
+      true,
+      "releasing the mouse should not release a note still held on the computer keyboard",
+    );
+    await page.keyboard.up("a");
+    assert.equal(
+      await c3Key.evaluate((key) => key.classList.contains("piano-key--pressed")),
+      false,
+      "C3 highlight should clear after the computer key is released",
+    );
+    assert.ok(
+      (await page.evaluate(() => window.__scheduledOscillators.length)) >
+        oscillatorCountBeforeComputerInput,
+      "computer-keyboard input should reach the audio playback path",
+    );
+
     const notes = [
       ["C4", 261.6255653005986],
       ["C♯4", 277.1826309768721],
@@ -143,19 +242,23 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       ["C5", 523.2511306011972],
     ];
 
+    const oscillatorCountBeforeMouseInput = await page.evaluate(
+      () => window.__scheduledOscillators.length,
+    );
     // Playwright clicks invoke the app keyboard's mouse handlers and real playback path.
     for (const [note] of notes) {
       await keyboard.getByRole("button", { name: note, exact: true }).click();
     }
 
     const captured = await page.evaluate(() => window.__scheduledOscillators);
+    const mouseInputOscillators = captured.slice(oscillatorCountBeforeMouseInput);
     // Confirm each UI-triggered voice was a sine at its expected equal-tempered frequency.
-    assert.equal(captured.length, notes.length);
+    assert.equal(mouseInputOscillators.length, notes.length);
     for (const [index, [note, expectedFrequency]] of notes.entries()) {
-      assert.equal(captured[index].type, "sine", `${note} oscillator type`);
+      assert.equal(mouseInputOscillators[index].type, "sine", `${note} oscillator type`);
       assert.ok(
-        Math.abs(captured[index].frequency - expectedFrequency) < 1e-9,
-        `${note}: expected ${expectedFrequency} Hz, got ${captured[index].frequency} Hz`,
+        Math.abs(mouseInputOscillators[index].frequency - expectedFrequency) < 1e-9,
+        `${note}: expected ${expectedFrequency} Hz, got ${mouseInputOscillators[index].frequency} Hz`,
       );
     }
 

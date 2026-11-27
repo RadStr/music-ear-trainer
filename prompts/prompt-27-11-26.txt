@@ -60,3 +60,9 @@ Ok.
 
 27-11-26:21-38-40
 Can you please add a note at the start of the keyboard-layout.md file that this a result of research of copilot agent and also provide the prompt. put this at the start of the file.
+
+27-11-26:21-41-58
+Ok now lets actually add the code to support pressing of musical keyboard using keyboard instead of only supporting mouse. Ideally create a separate file that has the key mappings. Also it would be nice to have this sort of control interface - since we have 3 ways of controlling keyboard playing - keyboard, mouse and in future possibly a midi keyboard. so create a separate itnerface and 3 separate files/directories, respectively only 2 since we do not have midi keyboard. Also add this architecture note to the agents.md file.
+
+27-11-26:22-21-29
+rename keyboard-input to musical-keyboard-input
