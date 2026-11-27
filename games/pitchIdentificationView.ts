@@ -131,6 +131,9 @@ export function createPitchIdentificationView(
       background: #e6f4ea;
       border: 1px solid #a8dab5;
     }
+    .pitch-game-actions button.pitch-game-finish {
+      color: #000;
+    }
     .pitch-game-guess {
       display: flex;
       flex-wrap: wrap;
@@ -142,6 +145,16 @@ export function createPitchIdentificationView(
     .pitch-game-guess button {
       cursor: pointer;
       padding: 0.3rem 0.6rem;
+    }
+    .pitch-game-guess button.pitch-game-guess-note--correct {
+      background: #e6f4ea;
+      border-color: #188038;
+      color: #137333;
+    }
+    .pitch-game-guess button.pitch-game-guess-note--incorrect {
+      background: #fce8e6;
+      border-color: #d93025;
+      color: #a50e0e;
     }
     .pitch-game-status {
       font-weight: 600;

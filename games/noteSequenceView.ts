@@ -113,7 +113,9 @@ export function createNoteSequenceView(): NoteSequenceView {
     .note-sequence-finish {
       background: #e6f4ea;
       border: 1px solid #a8dab5;
-      color: #137333;
+    }
+    .note-sequence-actions button.note-sequence-finish {
+      color: #000;
     }
     .note-sequence-finish:hover:not(:disabled) {
       background: #cde8d4;
@@ -142,12 +144,12 @@ export function createNoteSequenceView(): NoteSequenceView {
     .note-sequence-guess button:disabled {
       cursor: default;
     }
-    .note-sequence-guess-note--correct {
+    .note-sequence-guess button.note-sequence-guess-note--correct {
       background: #e6f4ea;
       border-color: #188038;
       color: #137333;
     }
-    .note-sequence-guess-note--incorrect {
+    .note-sequence-guess button.note-sequence-guess-note--incorrect {
       background: #fce8e6;
       border-color: #d93025;
       color: #a50e0e;

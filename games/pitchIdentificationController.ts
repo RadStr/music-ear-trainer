@@ -519,6 +519,17 @@ export class PitchIdentificationController {
         removeButton.textContent = midiNoteName(midiNote);
         removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
         removeButton.disabled = this.submitted;
+        if (this.submitted && this.gameMode !== "identify-pattern") {
+          const isCorrect: boolean =
+            this.kind === "scales"
+              ? midiNote === this.targetNotes[index]
+              : this.targetNotes.includes(midiNote);
+          removeButton.classList.add(
+            isCorrect
+              ? "pitch-game-guess-note--correct"
+              : "pitch-game-guess-note--incorrect",
+          );
+        }
         removeButton.addEventListener("click", (): void => {
           if (this.submitted) {
             return;

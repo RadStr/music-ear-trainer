@@ -66,3 +66,7 @@ Ok now lets actually add the code to support pressing of musical keyboard using 
 
 27-11-26:22-21-29
 rename keyboard-input to musical-keyboard-input
+
+27-11-26:22-30-28 You no longer show with red/green (in)correct guessed keys. Can you fix that please. And add it to agents.md that this red/green guesses should be for every future game.
+
+Also improve the Finish guess button - Make the text black and not white

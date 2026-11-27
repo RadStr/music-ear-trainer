@@ -351,6 +351,89 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     );
     assert.equal(await page.locator(".app-controls output").textContent(), "Single note");
 
+    await page.getByRole("button", { name: "Note sequence game" }).click();
+    await page.locator("#sequence-note-count").fill("1");
+    await page.evaluate(() => {
+      Math.random = () => 0;
+    });
+    await page.getByRole("button", { name: "Start new game" }).click();
+    const sequenceFinishButton = page.getByRole("button", { name: "Finish guess" });
+    assert.equal(
+      await sequenceFinishButton.evaluate((button) => getComputedStyle(button).color),
+      "rgb(0, 0, 0)",
+    );
+    const sequenceGame = page.locator(".note-sequence-view");
+    await sequenceGame.getByRole("button", { name: "D4", exact: true }).click();
+    await sequenceFinishButton.click();
+    const incorrectSequenceGuess = page.locator(
+      ".note-sequence-guess .note-sequence-guess-note--incorrect",
+    );
+    assert.equal(await incorrectSequenceGuess.textContent(), "1. D4");
+    assert.equal(
+      await incorrectSequenceGuess.evaluate((button) => getComputedStyle(button).backgroundColor),
+      "rgb(252, 232, 230)",
+    );
+    await page.getByRole("button", { name: "Reset keys" }).click();
+    await sequenceGame.getByRole("button", { name: "C4", exact: true }).click();
+    await sequenceFinishButton.click();
+    const correctSequenceGuess = page.locator(
+      ".note-sequence-guess .note-sequence-guess-note--correct",
+    );
+    assert.equal(await correctSequenceGuess.textContent(), "1. C4");
+    assert.equal(
+      await correctSequenceGuess.evaluate((button) => getComputedStyle(button).backgroundColor),
+      "rgb(230, 244, 234)",
+    );
+
+    await page.getByRole("button", { name: "Back to keyboard" }).click();
+    await page.getByRole("button", { name: "Chord and notes game" }).click();
+    await page.evaluate(() => {
+      Math.random = () => 0.999999;
+    });
+    await page.getByRole("button", { name: "Start new game" }).click();
+    const pitchFinishButton = page.getByRole("button", { name: "Finish guess" });
+    assert.equal(
+      await pitchFinishButton.evaluate((button) => getComputedStyle(button).color),
+      "rgb(0, 0, 0)",
+    );
+    const pitchGame = page.locator(".pitch-game-view--chords");
+    for (const note of ["C4", "D4", "E4"]) {
+      await pitchGame.getByRole("button", { name: note, exact: true }).click();
+    }
+    await pitchFinishButton.click();
+    const pitchGuesses = page.locator(".pitch-game-guess button");
+    assert.deepEqual(
+      await pitchGuesses.evaluateAll((buttons) =>
+        buttons.map((button) => ({
+          text: button.textContent,
+          correct: button.classList.contains("pitch-game-guess-note--correct"),
+          incorrect: button.classList.contains("pitch-game-guess-note--incorrect"),
+          background: getComputedStyle(button).backgroundColor,
+        })),
+      ),
+      [
+        {
+          text: "C4",
+          correct: true,
+          incorrect: false,
+          background: "rgb(230, 244, 234)",
+        },
+        {
+          text: "D4",
+          correct: true,
+          incorrect: false,
+          background: "rgb(230, 244, 234)",
+        },
+        {
+          text: "E4",
+          correct: false,
+          incorrect: true,
+          background: "rgb(252, 232, 230)",
+        },
+      ],
+    );
+    await page.getByRole("button", { name: "Back to keyboard" }).click();
+
     const c4Key = keyboard.getByRole("button", { name: "C4", exact: true });
     await c4Key.hover();
     await page.mouse.down();
