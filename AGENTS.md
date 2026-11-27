@@ -41,6 +41,7 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 ## Architecture
 
 - Place each method or class in the existing file that owns the same responsibility.
+- Store browser-persisted application settings in `model/settings-storage.ts`. Define the backend-neutral `SettingsStorage` interface there and implement storage backends as classes. Keep serialized fields grouped by feature (visualizations, envelope, keyboard, and other settings) so new persisted fields have an explicit, discoverable place.
 - Keep shared game guess evaluation and red/green feedback in `games/guessFeedback.ts`; game controllers should reuse it with the appropriate ordered or unordered matching mode.
 - In `views/appView.ts`, initialize UI elements inside focused `create...` methods that return the element or a small typed view object. Keep `createAppView` focused on composing those methods, following patterns such as `createAudioWavePanel`, `createPlayedKeysPanel`, and `createKeyboardControls`; avoid initializing UI elements inline there.
 - Create a new file under `todo-improve-architecture/` only when no existing file clearly owns the responsibility and the implementation is not a natural part of an existing module.

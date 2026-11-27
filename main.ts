@@ -9,14 +9,20 @@ import { CHORDS, SCALES } from "./games/pitchGameData";
 import { createPitchIdentificationView } from "./games/pitchIdentificationView";
 import { NoteSequenceController } from "./games/noteSequenceController";
 import { createNoteSequenceView } from "./games/noteSequenceView";
+import {
+  LocalStorageSettingsStorage,
+  type SettingsStorage,
+} from "./model/settings-storage";
 import type { AppView } from "./views/appView";
 import { createAppView } from "./views/appView";
 import { createEnvelopeView, type EnvelopeView } from "./views/envelopeView";
 
+const settingsStorage: SettingsStorage = new LocalStorageSettingsStorage();
+const settings = settingsStorage.loadSettings();
 const envelopeView: EnvelopeView = createEnvelopeView();
 const envelopeController: EnvelopeController = new EnvelopeController(
   envelopeView,
-  DEFAULT_ENVELOPE,
+  settings?.envelope ?? DEFAULT_ENVELOPE,
 );
 const appView: AppView = createAppView(envelopeView);
 const noteSequenceView = createNoteSequenceView();
@@ -40,6 +46,8 @@ const appController = new AppController(
   envelopeController,
   new MetaAudioController(),
   new CustomAudioController(),
+  settingsStorage,
+  settings,
 );
 const noteSequenceController = new NoteSequenceController(
   noteSequenceView,

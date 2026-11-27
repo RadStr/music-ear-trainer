@@ -1,0 +1,5 @@
+28-11-26:00-20-51 Can you please create a model directory that will have settings-storage file. The file will store all relevant settings from the previous playing - Namely - which visualization checkboxes are checked. The envelope settings and the keyboard settings (number of keys, ...). Make sure to separate the fields that are serialized somehow in the code, so it is clear where to add new possible settings to serialize. Extend agents.md accordingly.
+
+28-11-26:00-39-24 Make the store/load of settings class methods and make it implement general interface. We do this so we can possibly support another storages.
+
+Change the storage key to radstr-learning-by-ear.settings

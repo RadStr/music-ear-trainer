@@ -498,6 +498,43 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     });
     assert.equal(hasOscillatingWave, true, "audio wave should update while a note is held");
     await page.mouse.up();
+
+    await settingsButton.click();
+    await settingsDialog.getByRole("checkbox", { name: "Audio wave" }).uncheck();
+    await settingsDialog.getByRole("button", { name: "Done" }).click();
+    await page.getByRole("button", { name: "Edit envelope" }).click();
+    await page.locator("#envelope-attack").fill("0.42");
+    await page.getByRole("dialog", { name: "ADSR envelope" })
+      .getByRole("button", { name: "Done" })
+      .click();
+    await page.getByRole("button", { name: "Keyboard settings" }).click();
+    await page.locator("#sound-source").selectOption("square");
+    await page.getByRole("button", { name: "Play chords" }).click();
+    const savedChordDialog = page.getByRole("dialog", { name: "Keyboard playback" });
+    await savedChordDialog.getByRole("combobox", { name: "Play" }).selectOption("c-major");
+    await savedChordDialog.getByRole("button", { name: "Done" }).click();
+    await page.locator("#key-count").fill("36");
+    await page.locator("#app-volume").fill("55");
+    await page.getByRole("button", { name: "Update keyboard" }).click();
+
+    await page.reload();
+    assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);
+    assert.equal(
+      await page.evaluate(
+        () => localStorage.getItem("radstr-learning-by-ear.settings") !== null,
+      ),
+      true,
+    );
+    assert.equal(await page.locator("#sound-source").inputValue(), "square");
+    assert.equal(await page.locator(".app-controls output").textContent(), "C major triad");
+    await page.getByRole("button", { name: "Keyboard settings" }).click();
+    assert.equal(await page.locator("#key-count").inputValue(), "36");
+    assert.equal(await page.locator("#app-volume").inputValue(), "55");
+    await page.getByRole("dialog", { name: "Keyboard settings" })
+      .getByRole("button", { name: "Done" })
+      .click();
+    await page.getByRole("button", { name: "Edit envelope" }).click();
+    assert.equal(await page.locator("#envelope-attack").inputValue(), "0.42");
     assert.deepEqual(pageErrors, []);
   } finally {
     await browser?.close();

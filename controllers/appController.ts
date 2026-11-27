@@ -13,6 +13,14 @@ import { SineIntersectionVisualization } from "../audio-visualization/sine-inter
 import { StaticIntersectionVisualization } from "../audio-visualization/static-intersection/static-intersection-visualization";
 import { PlayedKeysVisualization } from "../audio-visualization/played-keys/played-keys-visualization";
 import { CHORDS, NOTE_PITCH_CLASSES } from "../games/pitchGameData";
+import {
+  DEFAULT_APP_SETTINGS,
+  isAudioSource,
+  isKeyboardPlaybackSelection,
+  type AppSettings,
+  type KeyboardPlaybackSelection,
+  type SettingsStorage,
+} from "../model/settings-storage";
 import { ComputerKeyboardInput } from "../musical-keyboard-input/computer-keyboard/computer-keyboard-input";
 import { MouseKeyboardInput } from "../musical-keyboard-input/mouse/mouse-keyboard-input";
 import type { KeyboardInput } from "../musical-keyboard-input/keyboard-input";
@@ -22,11 +30,7 @@ import { CustomAudioController } from "./customAudioController";
 import { EnvelopeController } from "./envelopeController";
 import { META_INSTRUMENTS, MetaAudioController } from "./metaAudioController";
 
-type ChordSelection = "single-note" | (typeof CHORDS)[number]["id"];
-
-function isChordSelection(value: string): value is ChordSelection {
-  return value === "single-note" || CHORDS.some((chord): boolean => chord.id === value);
-}
+type ChordSelection = KeyboardPlaybackSelection;
 
 interface VisualizationControl {
   readonly checkbox: HTMLInputElement;
@@ -37,6 +41,8 @@ interface VisualizationControl {
 export class AppController {
   private readonly view: AppView;
   private readonly envelopeController: EnvelopeController;
+  private readonly settingsStorage: SettingsStorage;
+  private settings: AppSettings;
   private readonly metaAudioController: MetaAudioController;
   private readonly customAudioController: CustomAudioController;
   private readonly activeVoices: Map<string, PlayingAudio> = new Map<string, PlayingAudio>();
@@ -51,7 +57,7 @@ export class AppController {
   private readonly staticIntersectionVisualization: StaticIntersectionVisualization;
   private readonly visualizations: readonly VisualizationControl[];
   private visualizationFrame: number | undefined;
-  private selectedSource: string = "sine";
+  private selectedSource: AppSettings["keyboard"]["audioSource"] = "sine";
   private selectedChordId: ChordSelection = "single-note";
 
   /**
@@ -60,17 +66,30 @@ export class AppController {
    * @param envelopeController Provides the active synthesis envelope.
    * @param metaAudioController Resolves bundled Meta instrument samples.
    * @param customAudioController Resolves user-provided custom samples.
+   * @param settingsStorage Loads and stores the application's persisted settings.
+   * @param initialSettings Previously saved application settings, when available.
    */
   constructor(
     view: AppView,
     envelopeController: EnvelopeController,
     metaAudioController: MetaAudioController,
     customAudioController: CustomAudioController,
+    settingsStorage: SettingsStorage,
+    initialSettings: AppSettings | undefined = undefined,
   ) {
     this.view = view;
     this.envelopeController = envelopeController;
     this.metaAudioController = metaAudioController;
     this.customAudioController = customAudioController;
+    this.settingsStorage = settingsStorage;
+    this.settings = initialSettings ?? DEFAULT_APP_SETTINGS;
+    this.applySettings();
+    this.envelopeController.setChangeHandler((envelope: Envelope | undefined): void => {
+      if (envelope) {
+        this.settings = { ...this.settings, envelope };
+        this.settingsStorage.storeSettings(this.settings);
+      }
+    });
     this.audioWaveVisualization = new AudioWaveVisualization(this.view.audioWaveCanvas);
     this.playedKeysVisualization = new PlayedKeysVisualization(this.view.playedKeysCanvas);
     this.sineIntersectionVisualization = new SineIntersectionVisualization(
@@ -114,21 +133,32 @@ export class AppController {
     this.view.volumeInput.addEventListener("input", (_event: Event): void => {
       this.view.volumeOutput.textContent = `${this.view.volumeInput.value}%`;
       setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
+      this.persistSettings();
     });
     setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
     this.view.sourceSelect.addEventListener("change", (_event: Event): void => {
-      this.selectedSource = this.view.sourceSelect.value;
+      const source: string = this.view.sourceSelect.value;
+      if (!isAudioSource(source)) {
+        throw new Error(`Unsupported sound source: ${source}`);
+      }
+      this.selectedSource = source;
       this.updateSoundSourceUI();
+      this.persistSettings();
     });
     for (const button of this.view.metaAudioButtons) {
       button.addEventListener("click", (_event: MouseEvent): void => {
+        if (!isAudioSource(button.value)) {
+          throw new Error(`Unsupported sound source: ${button.value}`);
+        }
         this.selectedSource = button.value;
         this.updateSoundSourceUI();
+        this.persistSettings();
       });
     }
     this.view.customSourceButton.addEventListener("click", (_event: MouseEvent): void => {
       this.selectedSource = "custom";
       this.updateSoundSourceUI();
+      this.persistSettings();
     });
     this.view.loadCustomSamplesButton.addEventListener("click", (_event: MouseEvent): void => {
       this.loadCustomSamples();
@@ -136,12 +166,14 @@ export class AppController {
     for (const visualization of this.visualizations) {
       visualization.checkbox.addEventListener("change", (): void => {
         this.updateVisualizations();
+        this.persistSettings();
       });
     }
 
     this.view.form.addEventListener("submit", (event: SubmitEvent): void => {
       event.preventDefault();
       if (this.renderSelectedKeyboard()) {
+        this.persistSettings();
         this.view.keyboardSettingsDialog.close();
       }
     });
@@ -151,7 +183,7 @@ export class AppController {
         return;
       }
       const selectedChordId: string = this.view.chordSelect.value;
-      if (!isChordSelection(selectedChordId)) {
+      if (!isKeyboardPlaybackSelection(selectedChordId)) {
         throw new Error(`Unsupported keyboard playback selection: ${selectedChordId}`);
       }
       const selectedOption: HTMLOptionElement | null =
@@ -161,12 +193,85 @@ export class AppController {
       }
       this.selectedChordId = selectedChordId;
       this.view.chordModeOutput.textContent = selectedOption.textContent;
+      this.persistSettings();
     });
     window.addEventListener("blur", (): void => this.releaseAllVoices());
 
     this.renderSelectedKeyboard();
     this.updateSoundSourceUI();
     this.updateVisualizations();
+  }
+
+  private applySettings(): void {
+    this.view.audioWaveCheckbox.checked = this.settings.visualizations.audioWave;
+    this.view.playedKeysCheckbox.checked = this.settings.visualizations.playedKeys;
+    this.view.sineIntersectionCheckbox.checked =
+      this.settings.visualizations.sineIntersection;
+    this.view.staticIntersectionCheckbox.checked =
+      this.settings.visualizations.staticIntersection;
+    this.view.keyCountInput.value = String(this.settings.keyboard.keyCount);
+    this.view.chordSelect.value = this.settings.keyboard.playbackSelection;
+    this.selectedChordId = this.settings.keyboard.playbackSelection;
+    const selectedOption: HTMLOptionElement | null =
+      this.view.chordSelect.selectedOptions.item(0);
+    if (!selectedOption) {
+      throw new Error("The saved keyboard playback option is missing.");
+    }
+    this.view.chordModeOutput.textContent = selectedOption.textContent;
+    this.view.volumeInput.value = String(this.settings.volume);
+    this.view.volumeOutput.textContent = `${this.settings.volume}%`;
+    this.view.customSampleUrlInput.value =
+      this.settings.keyboard.customSampleDirectoryUrl;
+    const savedSource: AppSettings["keyboard"]["audioSource"] =
+      this.settings.keyboard.audioSource;
+    this.selectedSource =
+      savedSource === "custom" &&
+      this.settings.keyboard.customSampleDirectoryUrl.length === 0
+        ? "sine"
+        : savedSource;
+    this.view.sourceSelect.value =
+      this.selectedSource === "sine" ||
+      this.selectedSource === "square" ||
+      this.selectedSource === "sawtooth"
+        ? this.selectedSource
+        : "sine";
+    if (this.selectedSource === "custom") {
+      try {
+        this.customAudioController.setDirectoryUrl(
+          this.settings.keyboard.customSampleDirectoryUrl,
+        );
+      } catch (error: unknown) {
+        const message: string = error instanceof Error ? error.message : String(error);
+        console.error("Unable to restore the saved custom sample directory.", error);
+        this.view.soundStatus.textContent =
+          `Unable to restore sample directory: ${message}`;
+        this.selectedSource = "sine";
+      }
+    }
+  }
+
+  private persistSettings(): void {
+    const keyCount: number = this.view.keyCountInput.valueAsNumber;
+    const keyboardSettings =
+      Number.isInteger(keyCount) && keyCount >= 1 && keyCount <= 88
+        ? { ...this.settings.keyboard, keyCount }
+        : this.settings.keyboard;
+    this.settings = {
+      ...this.settings,
+      visualizations: {
+        audioWave: this.view.audioWaveCheckbox.checked,
+        playedKeys: this.view.playedKeysCheckbox.checked,
+        sineIntersection: this.view.sineIntersectionCheckbox.checked,
+        staticIntersection: this.view.staticIntersectionCheckbox.checked,
+      },
+      keyboard: {
+        ...keyboardSettings,
+        playbackSelection: this.selectedChordId,
+        audioSource: this.selectedSource,
+      },
+      volume: this.view.volumeInput.valueAsNumber,
+    };
+    this.settingsStorage.storeSettings(this.settings);
   }
 
   /**
@@ -429,8 +534,16 @@ export class AppController {
         this.view.customSampleUrlInput.value,
       );
       this.view.customSampleUrlInput.setCustomValidity("");
+      this.settings = {
+        ...this.settings,
+        keyboard: {
+          ...this.settings.keyboard,
+          customSampleDirectoryUrl: directoryUrl,
+        },
+      };
       this.view.soundStatus.textContent =
         `Custom sample directory ready: ${directoryUrl} Samples load when played.`;
+      this.persistSettings();
     } catch (error: unknown) {
       const message: string = error instanceof Error ? error.message : String(error);
       this.view.customSampleUrlInput.setCustomValidity(message);
