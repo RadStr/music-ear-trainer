@@ -1,3 +1,5 @@
+import { ensureGuessFeedbackStyles } from "./guessFeedback";
+
 export interface NoteSequenceView {
   readonly element: HTMLElement;
   readonly backButton: HTMLButtonElement;
@@ -53,6 +55,7 @@ function createSettingsChevron(direction: "up" | "down"): SVGSVGElement {
  * @returns The note sequence view elements and control bindings.
  */
 export function createNoteSequenceView(): NoteSequenceView {
+  ensureGuessFeedbackStyles();
   const styles: HTMLStyleElement = document.createElement("style");
   styles.textContent = `
     .note-sequence-settings {
@@ -143,16 +146,6 @@ export function createNoteSequenceView(): NoteSequenceView {
     }
     .note-sequence-guess button:disabled {
       cursor: default;
-    }
-    .note-sequence-guess button.note-sequence-guess-note--correct {
-      background: #e6f4ea;
-      border-color: #188038;
-      color: #137333;
-    }
-    .note-sequence-guess button.note-sequence-guess-note--incorrect {
-      background: #fce8e6;
-      border-color: #d93025;
-      color: #a50e0e;
     }
     .note-sequence-status {
       font-weight: 600;
@@ -297,7 +290,7 @@ export function createNoteSequenceView(): NoteSequenceView {
   const guessHeading: HTMLHeadingElement = document.createElement("h2");
   guessHeading.textContent = "Your sequence";
   const guessList: HTMLOListElement = document.createElement("ol");
-  guessList.className = "note-sequence-guess";
+  guessList.className = "note-sequence-guess guess-feedback-list";
   const status: HTMLOutputElement = document.createElement("output");
   status.className = "note-sequence-status";
   status.setAttribute("aria-live", "polite");

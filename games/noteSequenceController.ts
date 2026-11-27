@@ -1,5 +1,6 @@
 import type { Envelope, PlayingAudio } from "../audio/types";
 import { midiNoteName, renderKeyboard } from "../keyboard";
+import { evaluateGuess, setGuessFeedback } from "./guessFeedback";
 import type { NoteSequenceView } from "./noteSequenceView";
 
 const FIRST_GAME_NOTE: number = 60;
@@ -22,7 +23,6 @@ export class NoteSequenceController {
   private sequence: number[] = [];
   private durations: number[] = [];
   private guess: number[] = [];
-  private correctPositions: boolean[] = [];
   private submitted: boolean = false;
   private gameActive: boolean = false;
   private failedGuesses: number = 0;
@@ -104,7 +104,6 @@ export class NoteSequenceController {
     this.sequence = [];
     this.durations = [];
     this.guess = [];
-    this.correctPositions = [];
     this.submitted = false;
     this.failedGuesses = 0;
     this.hintsUsed = 0;
@@ -177,7 +176,6 @@ export class NoteSequenceController {
     this.failedGuesses = 0;
     this.gameActive = true;
     this.guess = [];
-    this.correctPositions = [];
     this.submitted = false;
     this.view.settingsToggleButton.hidden = false;
     this.view.setSettingsExpanded(false);
@@ -316,12 +314,11 @@ export class NoteSequenceController {
     }
     this.stopPlayback();
     this.submitted = true;
-    this.correctPositions = this.guess.map(
-      (midiNote: number, index: number): boolean => midiNote === this.sequence[index],
-    );
-    const isCorrect: boolean =
-      this.guess.length === this.sequence.length &&
-      this.correctPositions.every((isCorrect: boolean): boolean => isCorrect);
+    const isCorrect: boolean = evaluateGuess(
+      this.guess,
+      this.sequence,
+      "ordered",
+    ).isCorrect;
     if (!isCorrect) {
       this.failedGuesses += 1;
     }
@@ -369,7 +366,6 @@ export class NoteSequenceController {
     this.gestureGuessIndex = undefined;
     this.submitted = false;
     this.guess = [];
-    this.correctPositions = [];
     this.view.finishButton.disabled = false;
     this.view.resetButton.disabled = false;
     this.setKeyboardDisabled(false);
@@ -381,6 +377,9 @@ export class NoteSequenceController {
 
   private renderGuess(): void {
     this.view.playMySequenceButton.disabled = this.guess.length === 0;
+    const feedback = this.submitted
+      ? evaluateGuess(this.guess, this.sequence, "ordered")
+      : undefined;
     const items: HTMLLIElement[] = this.guess.map(
       (midiNote: number, index: number): HTMLLIElement => {
         const item: HTMLLIElement = document.createElement("li");
@@ -390,12 +389,8 @@ export class NoteSequenceController {
         removeButton.textContent = `${index + 1}. ${midiNoteName(midiNote)}`;
         removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
         removeButton.disabled = this.submitted;
-        if (this.submitted) {
-          removeButton.classList.add(
-            this.correctPositions[index]
-              ? "note-sequence-guess-note--correct"
-              : "note-sequence-guess-note--incorrect",
-          );
+        if (feedback) {
+          setGuessFeedback(removeButton, feedback.noteIsCorrect[index] === true);
         }
         removeButton.addEventListener("click", (_event: MouseEvent): void => {
           if (this.submitted) {

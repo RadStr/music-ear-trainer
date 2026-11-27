@@ -1,5 +1,6 @@
 import type { Envelope, PlayingAudio } from "../audio/types";
 import { midiNoteName, renderKeyboard } from "../keyboard";
+import { evaluateGuess, setGuessFeedback } from "./guessFeedback";
 import { NOTE_PITCH_CLASSES, type PitchPattern } from "./pitchGameData";
 import type { PitchGameKind, PitchIdentificationView } from "./pitchIdentificationView";
 
@@ -392,13 +393,11 @@ export class PitchIdentificationController {
     }
     let isCorrect: boolean;
     if (this.gameMode !== "identify-pattern") {
-      isCorrect =
-        this.guess.length === this.targetNotes.length &&
-        (this.kind === "scales"
-          ? this.guess.every(
-              (midiNote: number, index: number): boolean => midiNote === this.targetNotes[index],
-            )
-          : this.guess.every((midiNote: number): boolean => this.targetNotes.includes(midiNote)));
+      isCorrect = evaluateGuess(
+        this.guess,
+        this.targetNotes,
+        this.kind === "scales" ? "ordered" : "unordered",
+      ).isCorrect;
     } else {
       const selectedAnswer: HTMLInputElement | null =
         this.view.answerOptions.querySelector<HTMLInputElement>('input[type="radio"]:checked');
@@ -510,6 +509,14 @@ export class PitchIdentificationController {
   private renderGuess(): void {
     this.view.playGuessButton.disabled =
       this.guess.length === 0 || this.submitted || !this.gameActive;
+    const feedback =
+      this.submitted && this.gameMode !== "identify-pattern"
+        ? evaluateGuess(
+            this.guess,
+            this.targetNotes,
+            this.kind === "scales" ? "ordered" : "unordered",
+          )
+        : undefined;
     const items: HTMLLIElement[] = this.guess.map(
       (midiNote: number, index: number): HTMLLIElement => {
         const item: HTMLLIElement = document.createElement("li");
@@ -519,16 +526,8 @@ export class PitchIdentificationController {
         removeButton.textContent = midiNoteName(midiNote);
         removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
         removeButton.disabled = this.submitted;
-        if (this.submitted && this.gameMode !== "identify-pattern") {
-          const isCorrect: boolean =
-            this.kind === "scales"
-              ? midiNote === this.targetNotes[index]
-              : this.targetNotes.includes(midiNote);
-          removeButton.classList.add(
-            isCorrect
-              ? "pitch-game-guess-note--correct"
-              : "pitch-game-guess-note--incorrect",
-          );
+        if (feedback) {
+          setGuessFeedback(removeButton, feedback.noteIsCorrect[index] === true);
         }
         removeButton.addEventListener("click", (): void => {
           if (this.submitted) {

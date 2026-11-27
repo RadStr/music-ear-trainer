@@ -1,4 +1,5 @@
 import type { PitchPattern } from "./pitchGameData";
+import { ensureGuessFeedbackStyles } from "./guessFeedback";
 
 export type PitchGameKind = "chords" | "scales";
 
@@ -46,6 +47,7 @@ export function createPitchIdentificationView(
   instructions: string,
   patterns: readonly PitchPattern[],
 ): PitchIdentificationView {
+  ensureGuessFeedbackStyles();
   const styles: HTMLStyleElement = document.createElement("style");
   styles.textContent = `
     .pitch-game-settings {
@@ -145,16 +147,6 @@ export function createPitchIdentificationView(
     .pitch-game-guess button {
       cursor: pointer;
       padding: 0.3rem 0.6rem;
-    }
-    .pitch-game-guess button.pitch-game-guess-note--correct {
-      background: #e6f4ea;
-      border-color: #188038;
-      color: #137333;
-    }
-    .pitch-game-guess button.pitch-game-guess-note--incorrect {
-      background: #fce8e6;
-      border-color: #d93025;
-      color: #a50e0e;
     }
     .pitch-game-status {
       font-weight: 600;
@@ -330,7 +322,7 @@ export function createPitchIdentificationView(
   const guessHeading: HTMLHeadingElement = document.createElement("h2");
   guessHeading.textContent = kind === "chords" ? "Your notes" : "Your answer";
   const guessList: HTMLOListElement = document.createElement("ol");
-  guessList.className = "pitch-game-guess";
+  guessList.className = "pitch-game-guess guess-feedback-list";
   const status: HTMLOutputElement = document.createElement("output");
   status.className = "pitch-game-status";
   status.setAttribute("aria-live", "polite");

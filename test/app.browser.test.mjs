@@ -68,6 +68,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
 
     await page.goto(`http://127.0.0.1:${address.port}/`);
     await page.getByRole("heading", { name: "Musical keyboard" }).waitFor();
+    assert.equal(await page.locator("#guess-feedback-styles").count(), 1);
     const settingsButton = page.getByRole("button", { name: "Visualization settings" });
     const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
@@ -366,7 +367,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await sequenceGame.getByRole("button", { name: "D4", exact: true }).click();
     await sequenceFinishButton.click();
     const incorrectSequenceGuess = page.locator(
-      ".note-sequence-guess .note-sequence-guess-note--incorrect",
+      ".note-sequence-guess .guess-feedback--incorrect",
     );
     assert.equal(await incorrectSequenceGuess.textContent(), "1. D4");
     assert.equal(
@@ -377,7 +378,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await sequenceGame.getByRole("button", { name: "C4", exact: true }).click();
     await sequenceFinishButton.click();
     const correctSequenceGuess = page.locator(
-      ".note-sequence-guess .note-sequence-guess-note--correct",
+      ".note-sequence-guess .guess-feedback--correct",
     );
     assert.equal(await correctSequenceGuess.textContent(), "1. C4");
     assert.equal(
@@ -406,8 +407,8 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       await pitchGuesses.evaluateAll((buttons) =>
         buttons.map((button) => ({
           text: button.textContent,
-          correct: button.classList.contains("pitch-game-guess-note--correct"),
-          incorrect: button.classList.contains("pitch-game-guess-note--incorrect"),
+          correct: button.classList.contains("guess-feedback--correct"),
+          incorrect: button.classList.contains("guess-feedback--incorrect"),
           background: getComputedStyle(button).backgroundColor,
         })),
       ),
