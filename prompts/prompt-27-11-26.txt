@@ -4,3 +4,5 @@
 
 27-11-26:14-14-45 Try to give the page a bit more modern look. Use bootstrap and stuff like that. Or maybe use tailwind for styling if possible.
 
+27-11-26:17-09-17 CAn you change the starting position of scrollbar so on the left is C3 (because the notes under it are usually useless)
+

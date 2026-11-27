@@ -164,6 +164,7 @@
   // keyboard.ts
   var WHITE_PITCH_CLASSES = /* @__PURE__ */ new Set([0, 2, 4, 5, 7, 9, 11]);
   var NOTE_NAMES = ["C", "C\u266F", "D", "D\u266F", "E", "F", "F\u266F", "G", "G\u266F", "A", "A\u266F", "B"];
+  var C3_MIDI_NOTE = 48;
   function midiNoteName(midiNote) {
     if (!Number.isInteger(midiNote) || midiNote < 0) {
       throw new RangeError("The MIDI note must be a non-negative integer.");
@@ -321,6 +322,10 @@
     }
     viewport.append(keyboard);
     container.replaceChildren(viewport);
+    const c3Key = keyboard.querySelector(`[aria-label="${midiNoteName(C3_MIDI_NOTE)}"]`);
+    if (c3Key) {
+      viewport.scrollLeft = c3Key.offsetLeft;
+    }
   }
 
   // audio/sampleSource.ts

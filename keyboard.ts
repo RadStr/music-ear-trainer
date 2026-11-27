@@ -1,5 +1,6 @@
 const WHITE_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 2, 4, 5, 7, 9, 11]);
 const NOTE_NAMES: readonly string[] = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+const C3_MIDI_NOTE: number = 48;
 
 export function midiNoteName(midiNote: number): string {
   if (!Number.isInteger(midiNote) || midiNote < 0) {
@@ -186,4 +187,9 @@ export function renderKeyboard(
 
   viewport.append(keyboard);
   container.replaceChildren(viewport);
+  const c3Key: HTMLButtonElement | null =
+    keyboard.querySelector<HTMLButtonElement>(`[aria-label="${midiNoteName(C3_MIDI_NOTE)}"]`);
+  if (c3Key) {
+    viewport.scrollLeft = c3Key.offsetLeft;
+  }
 }

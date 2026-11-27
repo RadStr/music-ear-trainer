@@ -10,7 +10,7 @@ Learning by Ear has two purposes: learning agentic coding and learning music the
 
 ### Playing
 
-Play notes on a configurable 1–88-key keyboard. Choose a sine, square, or sawtooth waveform, a piano or guitar instrument, or your own sample directory; adjust the volume and note envelope to shape the sound.
+Play notes on a configurable 1–88-key keyboard, initially scrolled to C3. Choose a sine, square, or sawtooth waveform, a piano or guitar instrument, or your own sample directory; adjust the volume and note envelope to shape the sound.
 
 ![Musical keyboard and sound controls](readme-images/playing.png)
 

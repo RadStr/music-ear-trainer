@@ -62,6 +62,17 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.getByRole("heading", { name: "Musical keyboard" }).waitFor();
     const keyboard = page.locator("main > section").first();
     assert.equal(await keyboard.locator(".piano-key").count(), 88);
+    const c3Key = keyboard.getByRole("button", { name: "C3", exact: true });
+    const c3Left = await c3Key.evaluate((key) => key.getBoundingClientRect().left);
+    const viewportLeft = await keyboard.locator(".keyboard-viewport").evaluate((viewport) => {
+      const style = getComputedStyle(viewport);
+      return (
+        viewport.getBoundingClientRect().left +
+        viewport.clientLeft +
+        Number.parseFloat(style.paddingLeft)
+      );
+    });
+    assert.ok(Math.abs(c3Left - viewportLeft) < 1, "C3 should start at the viewport's left edge");
 
     const notes = [
       ["C4", 261.6255653005986],
