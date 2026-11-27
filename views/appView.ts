@@ -174,6 +174,7 @@ function createVisualizationSettings(): VisualizationSettingsView {
   audioWaveOption.className = "visualization-option";
   const audioWaveCheckbox: HTMLInputElement = document.createElement("input");
   audioWaveCheckbox.type = "checkbox";
+  audioWaveCheckbox.checked = true;
   audioWaveCheckbox.className = "form-check-input";
   audioWaveCheckbox.setAttribute("aria-label", "Audio wave");
   audioWaveOption.append(audioWaveCheckbox, document.createTextNode("Audio wave"));
@@ -182,6 +183,7 @@ function createVisualizationSettings(): VisualizationSettingsView {
   playedKeysOption.className = "visualization-option";
   const playedKeysCheckbox: HTMLInputElement = document.createElement("input");
   playedKeysCheckbox.type = "checkbox";
+  playedKeysCheckbox.checked = true;
   playedKeysCheckbox.className = "form-check-input";
   playedKeysCheckbox.setAttribute("aria-label", "Played keys");
   playedKeysOption.append(playedKeysCheckbox, document.createTextNode("Played keys"));

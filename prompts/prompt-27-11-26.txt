@@ -24,3 +24,7 @@ Also in the appView you are doing a lot of setting of variables, cant you like p
 
 27-11-26:19-39-50 The shown key in visualization is too small.
 
+27-11-26:19-42-44 Make sure that:
+1) the visualizations are on when the user opens the page
+2) That the visualization of the wave is correct. Right now I am not sure it seems that the wave is drawn twice with small phase shit. Idk if that is correct or not, tell my why is that so and if it is wrong fix it.
+

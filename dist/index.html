@@ -767,6 +767,7 @@
       window.addEventListener("blur", () => this.releaseAllVoices());
       this.renderSelectedKeyboard();
       this.updateSoundSourceUI();
+      this.updateVisualizations();
     }
     /**
      * Starts a waveform or sample voice for a MIDI note.
@@ -2745,6 +2746,7 @@
     audioWaveOption.className = "visualization-option";
     const audioWaveCheckbox = document.createElement("input");
     audioWaveCheckbox.type = "checkbox";
+    audioWaveCheckbox.checked = true;
     audioWaveCheckbox.className = "form-check-input";
     audioWaveCheckbox.setAttribute("aria-label", "Audio wave");
     audioWaveOption.append(audioWaveCheckbox, document.createTextNode("Audio wave"));
@@ -2752,6 +2754,7 @@
     playedKeysOption.className = "visualization-option";
     const playedKeysCheckbox = document.createElement("input");
     playedKeysCheckbox.type = "checkbox";
+    playedKeysCheckbox.checked = true;
     playedKeysCheckbox.className = "form-check-input";
     playedKeysCheckbox.setAttribute("aria-label", "Played keys");
     playedKeysOption.append(playedKeysCheckbox, document.createTextNode("Played keys"));

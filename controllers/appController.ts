@@ -122,6 +122,7 @@ export class AppController {
 
     this.renderSelectedKeyboard();
     this.updateSoundSourceUI();
+    this.updateVisualizations();
   }
 
   /**

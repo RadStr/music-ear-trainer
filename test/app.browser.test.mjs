@@ -62,13 +62,18 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.getByRole("heading", { name: "Musical keyboard" }).waitFor();
     const settingsButton = page.getByRole("button", { name: "Visualization settings" });
     const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
-    assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);
-    assert.equal(await page.locator("#played-keys-panel").isVisible(), false);
+    assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
+    assert.equal(await page.locator("#played-keys-panel").isVisible(), true);
     assert.equal(await settingsDialog.isVisible(), false);
     await settingsButton.click();
     assert.equal(await settingsDialog.isVisible(), true);
-    await settingsDialog.getByRole("checkbox", { name: "Audio wave" }).check();
-    await settingsDialog.getByRole("checkbox", { name: "Played keys" }).check();
+    const audioWaveCheckbox = settingsDialog.getByRole("checkbox", { name: "Audio wave" });
+    const playedKeysCheckbox = settingsDialog.getByRole("checkbox", { name: "Played keys" });
+    assert.equal(await audioWaveCheckbox.isChecked(), true);
+    assert.equal(await playedKeysCheckbox.isChecked(), true);
+    await audioWaveCheckbox.uncheck();
+    assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);
+    await audioWaveCheckbox.check();
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), true);
     assert.equal(await page.locator("#played-keys-panel").isVisible(), true);
     const waveformPixel = await page.locator("#audio-wave-canvas").evaluate((canvas) => {
