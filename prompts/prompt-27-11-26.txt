@@ -49,3 +49,14 @@ And finally lets add static-intersection. This visualizes a graph and under it a
 actually remove the intersection-visualization.
 
 Also static intersection should show all of them not just the first two so it could be for example 1:2:3. Also I do not really care about the time it takes to intersect, I care about number of cycles.
+
+27-11-26:21-23-00
+Peform research on how usual tools map the key playing to standard keyboard. For example I know that surge xt uses the A keyboard row to play white keys and the Q row to play black keys and uses buttons X,C to go octave down, respectively up. Perform research on how other tools do it. Once done report the research to me, I wil lthen choose the "optimal" layout for this application.
+
+27-11-26:21-36-26
+Ok.
+1) Put your research you just did into a file named keyboard-layout and put it into a new agent-research directory. Ideally a md file with the table.
+2) I will use the ableton live layout except that we will use x/c for lower/raise octave and v/b for velocity adjustment (if we ever add it)
+
+27-11-26:21-38-40
+Can you please add a note at the start of the keyboard-layout.md file that this a result of research of copilot agent and also provide the prompt. put this at the start of the file.
