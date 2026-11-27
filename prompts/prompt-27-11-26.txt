@@ -1,2 +1,4 @@
 27-11-26:00-42-24 Change attack and release to 0.2s
 
+27-11-26:01-11-06 Why is the default parameters of envelope defined on one place an then in the envelopeView it is defined again, why is the default envelope from types not used in the envelopeView, this way you can forget to modify one when changing the other. Fix that.
+

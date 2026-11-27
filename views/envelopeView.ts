@@ -1,4 +1,4 @@
-import type { Envelope } from "../audio/types";
+import { DEFAULT_ENVELOPE, type Envelope } from "../audio/types";
 
 interface EnvelopeControl {
   readonly numberInput: HTMLInputElement;
@@ -354,25 +354,25 @@ export function createEnvelopeView(): EnvelopeView {
   const attackControl: EnvelopeControl = addControl(
     "envelope-attack",
     "Attack (seconds)",
-    "0.2",
+    String(DEFAULT_ENVELOPE.attack),
     "5",
   );
   const decayControl: EnvelopeControl = addControl(
     "envelope-decay",
     "Decay (seconds)",
-    "0.1",
+    String(DEFAULT_ENVELOPE.decay),
     "5",
   );
   const sustainControl: EnvelopeControl = addControl(
     "envelope-sustain",
     "Sustain (0–1)",
-    "0.7",
+    String(DEFAULT_ENVELOPE.sustain),
     "1",
   );
   const releaseControl: EnvelopeControl = addControl(
     "envelope-release",
     "Release (seconds)",
-    "0.2",
+    String(DEFAULT_ENVELOPE.release),
     "5",
   );
 
