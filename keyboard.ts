@@ -16,8 +16,14 @@ export function midiNoteName(midiNote: number): string {
 export interface KeyboardCallbacks {
   readonly onPress: (midiNote: number) => void;
   readonly onRelease: (midiNote: number) => void;
+  readonly getPlayedNotes?: (midiNote: number) => readonly number[];
   readonly onHover: (midiNote: number, noteName: string) => void;
   readonly onLeave: () => void;
+}
+
+interface PressedKeyState {
+  readonly midiNote: number;
+  readonly highlightedNotes: readonly number[];
 }
 
 const KEYBOARD_EVENT_CONTROLLERS: WeakMap<HTMLElement, AbortController> = new WeakMap<
@@ -112,13 +118,56 @@ export function renderKeyboard(
   keyboard.setAttribute("aria-label", "Musical keyboard");
   keyboard.style.width = `max(100%, ${layoutWhiteKeyCount * 42}px)`;
 
-  const pressedKeys: Map<HTMLButtonElement, number> = new Map<HTMLButtonElement, number>();
-  const releasePressedKeys = (): void => {
-    for (const [pressedKey, midiNote] of pressedKeys) {
-      pressedKey.classList.remove("piano-key--pressed");
-      callbacks.onRelease(midiNote);
+  const pressedKeys: Map<HTMLButtonElement, PressedKeyState> = new Map<
+    HTMLButtonElement,
+    PressedKeyState
+  >();
+  const keysByMidiNote: Map<number, HTMLButtonElement> = new Map<
+    number,
+    HTMLButtonElement
+  >();
+  const highlightedNoteCounts: Map<number, number> = new Map<number, number>();
+  const updateNoteHighlight = (midiNote: number, isPressed: boolean): void => {
+    const key: HTMLButtonElement | undefined = keysByMidiNote.get(midiNote);
+    if (!key) {
+      return;
     }
-    pressedKeys.clear();
+    const currentCount: number = highlightedNoteCounts.get(midiNote) ?? 0;
+    if (isPressed) {
+      highlightedNoteCounts.set(midiNote, currentCount + 1);
+      key.classList.add("piano-key--pressed");
+    } else if (currentCount <= 1) {
+      highlightedNoteCounts.delete(midiNote);
+      key.classList.remove("piano-key--pressed");
+    } else {
+      highlightedNoteCounts.set(midiNote, currentCount - 1);
+    }
+  };
+  const pressKey = (key: HTMLButtonElement, midiNote: number): void => {
+    const playedNotes: readonly number[] = callbacks.getPlayedNotes?.(midiNote) ?? [midiNote];
+    const highlightedNotes: readonly number[] = Array.from(
+      new Set<number>([midiNote, ...playedNotes]),
+    );
+    pressedKeys.set(key, { midiNote, highlightedNotes });
+    for (const highlightedNote of highlightedNotes) {
+      updateNoteHighlight(highlightedNote, true);
+    }
+  };
+  const releasePressedKey = (key: HTMLButtonElement): void => {
+    const pressedKey: PressedKeyState | undefined = pressedKeys.get(key);
+    if (!pressedKey) {
+      return;
+    }
+    pressedKeys.delete(key);
+    for (const highlightedNote of pressedKey.highlightedNotes) {
+      updateNoteHighlight(highlightedNote, false);
+    }
+    callbacks.onRelease(pressedKey.midiNote);
+  };
+  const releasePressedKeys = (): void => {
+    for (const key of Array.from(pressedKeys.keys())) {
+      releasePressedKey(key);
+    }
   };
   document.addEventListener("mouseup", releasePressedKeys, {
     signal: eventController.signal,
@@ -137,6 +186,7 @@ export function renderKeyboard(
     key.className = `piano-key ${isWhiteKey ? "piano-key--white" : "piano-key--black"}`;
     key.textContent = noteName;
     key.setAttribute("aria-label", noteName);
+    keysByMidiNote.set(midiNote, key);
 
     if (isWhiteKey) {
       key.style.left = `${whiteKeyIndex * whiteKeyWidth}%`;
@@ -152,24 +202,21 @@ export function renderKeyboard(
         return;
       }
       event.preventDefault();
-      pressedKeys.set(key, midiNote);
-      key.classList.add("piano-key--pressed");
+      pressKey(key, midiNote);
       callbacks.onPress(midiNote);
     });
     key.addEventListener("mouseenter", (_event: MouseEvent): void => {
       if (_event.buttons === 1) {
-        const pressedEntry: [HTMLButtonElement, number] | undefined =
-          Array.from(pressedKeys.entries()).find(([_pressedKey]: [HTMLButtonElement, number]) =>
-            _pressedKey !== key,
+        const pressedEntry: [HTMLButtonElement, PressedKeyState] | undefined =
+          Array.from(pressedKeys.entries()).find(
+            ([pressedKey]: [HTMLButtonElement, PressedKeyState]): boolean =>
+              pressedKey !== key,
           );
         if (pressedEntry) {
-          const [pressedKey, pressedMidiNote]: [HTMLButtonElement, number] = pressedEntry;
-          pressedKeys.delete(pressedKey);
-          pressedKey.classList.remove("piano-key--pressed");
+          const [pressedKey]: [HTMLButtonElement, PressedKeyState] = pressedEntry;
+          pressKey(key, midiNote);
           callbacks.onPress(midiNote);
-          pressedKeys.set(key, midiNote);
-          key.classList.add("piano-key--pressed");
-          callbacks.onRelease(pressedMidiNote);
+          releasePressedKey(pressedKey);
           callbacks.onHover(midiNote, noteName);
           return;
         }

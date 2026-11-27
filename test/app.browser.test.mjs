@@ -155,7 +155,18 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const stoppedBeforeChord = await page.evaluate(
       () => window.__stoppedOscillators.length,
     );
-    await keyboard.getByRole("button", { name: "D4", exact: true }).click();
+    const chordRootKey = keyboard.getByRole("button", { name: "D4", exact: true });
+    await chordRootKey.hover();
+    await page.mouse.down();
+    for (const note of ["D4", "F♯4", "A4"]) {
+      assert.equal(
+        await keyboard
+          .getByRole("button", { name: note, exact: true })
+          .evaluate((key) => key.classList.contains("piano-key--pressed")),
+        true,
+        `${note} should be highlighted while the chord is held`,
+      );
+    }
     const chordFrequencies = await page.evaluate(() =>
       window.__scheduledOscillators.slice(-3).map((oscillator) => oscillator.frequency),
     );
@@ -164,6 +175,16 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       chordFrequencies.map((frequency) => Math.round(frequency * 100) / 100),
       [293.66, 369.99, 440],
     );
+    await page.mouse.up();
+    for (const note of ["D4", "F♯4", "A4"]) {
+      assert.equal(
+        await keyboard
+          .getByRole("button", { name: note, exact: true })
+          .evaluate((key) => key.classList.contains("piano-key--pressed")),
+        false,
+        `${note} highlight should clear when the chord is released`,
+      );
+    }
     const releasedChordVoices = await page.evaluate(() =>
       window.__stoppedOscillators.slice(-3),
     );

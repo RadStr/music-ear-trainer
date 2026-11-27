@@ -319,12 +319,49 @@
     keyboard.setAttribute("aria-label", "Musical keyboard");
     keyboard.style.width = `max(100%, ${layoutWhiteKeyCount * 42}px)`;
     const pressedKeys = /* @__PURE__ */ new Map();
-    const releasePressedKeys = () => {
-      for (const [pressedKey, midiNote] of pressedKeys) {
-        pressedKey.classList.remove("piano-key--pressed");
-        callbacks.onRelease(midiNote);
+    const keysByMidiNote = /* @__PURE__ */ new Map();
+    const highlightedNoteCounts = /* @__PURE__ */ new Map();
+    const updateNoteHighlight = (midiNote, isPressed) => {
+      const key = keysByMidiNote.get(midiNote);
+      if (!key) {
+        return;
       }
-      pressedKeys.clear();
+      const currentCount = highlightedNoteCounts.get(midiNote) ?? 0;
+      if (isPressed) {
+        highlightedNoteCounts.set(midiNote, currentCount + 1);
+        key.classList.add("piano-key--pressed");
+      } else if (currentCount <= 1) {
+        highlightedNoteCounts.delete(midiNote);
+        key.classList.remove("piano-key--pressed");
+      } else {
+        highlightedNoteCounts.set(midiNote, currentCount - 1);
+      }
+    };
+    const pressKey = (key, midiNote) => {
+      const playedNotes = callbacks.getPlayedNotes?.(midiNote) ?? [midiNote];
+      const highlightedNotes = Array.from(
+        /* @__PURE__ */ new Set([midiNote, ...playedNotes])
+      );
+      pressedKeys.set(key, { midiNote, highlightedNotes });
+      for (const highlightedNote of highlightedNotes) {
+        updateNoteHighlight(highlightedNote, true);
+      }
+    };
+    const releasePressedKey = (key) => {
+      const pressedKey = pressedKeys.get(key);
+      if (!pressedKey) {
+        return;
+      }
+      pressedKeys.delete(key);
+      for (const highlightedNote of pressedKey.highlightedNotes) {
+        updateNoteHighlight(highlightedNote, false);
+      }
+      callbacks.onRelease(pressedKey.midiNote);
+    };
+    const releasePressedKeys = () => {
+      for (const key of Array.from(pressedKeys.keys())) {
+        releasePressedKey(key);
+      }
     };
     document.addEventListener("mouseup", releasePressedKeys, {
       signal: eventController.signal
@@ -342,6 +379,7 @@
       key.className = `piano-key ${isWhiteKey ? "piano-key--white" : "piano-key--black"}`;
       key.textContent = noteName;
       key.setAttribute("aria-label", noteName);
+      keysByMidiNote.set(midiNote, key);
       if (isWhiteKey) {
         key.style.left = `${whiteKeyIndex * whiteKeyWidth}%`;
         key.style.width = `${whiteKeyWidth}%`;
@@ -355,23 +393,19 @@
           return;
         }
         event.preventDefault();
-        pressedKeys.set(key, midiNote);
-        key.classList.add("piano-key--pressed");
+        pressKey(key, midiNote);
         callbacks.onPress(midiNote);
       });
       key.addEventListener("mouseenter", (_event) => {
         if (_event.buttons === 1) {
           const pressedEntry = Array.from(pressedKeys.entries()).find(
-            ([_pressedKey]) => _pressedKey !== key
+            ([pressedKey]) => pressedKey !== key
           );
           if (pressedEntry) {
-            const [pressedKey, pressedMidiNote] = pressedEntry;
-            pressedKeys.delete(pressedKey);
-            pressedKey.classList.remove("piano-key--pressed");
+            const [pressedKey] = pressedEntry;
+            pressKey(key, midiNote);
             callbacks.onPress(midiNote);
-            pressedKeys.set(key, midiNote);
-            key.classList.add("piano-key--pressed");
-            callbacks.onRelease(pressedMidiNote);
+            releasePressedKey(pressedKey);
             callbacks.onHover(midiNote, noteName);
             return;
           }
@@ -723,6 +757,9 @@
   };
 
   // controllers/appController.ts
+  function isChordSelection(value) {
+    return value === "single-note" || CHORDS.some((chord) => chord.id === value);
+  }
   var AppController = class {
     /**
      * Creates the app controller and wires keyboard, source, volume, and lifecycle controls.
@@ -794,11 +831,15 @@
           this.view.chordSelect.value = this.selectedChordId;
           return;
         }
-        this.selectedChordId = this.view.chordSelect.value;
+        const selectedChordId = this.view.chordSelect.value;
+        if (!isChordSelection(selectedChordId)) {
+          throw new Error(`Unsupported keyboard playback selection: ${selectedChordId}`);
+        }
         const selectedOption = this.view.chordSelect.selectedOptions.item(0);
         if (!selectedOption) {
           throw new Error("The selected keyboard playback option is missing.");
         }
+        this.selectedChordId = selectedChordId;
         this.view.chordModeOutput.textContent = selectedOption.textContent;
       });
       window.addEventListener("pointerup", (event) => {
@@ -943,14 +984,14 @@
             return;
           }
           this.activeVoices.get(midiNote)?.release();
-          const intervals = this.getSelectedChordIntervals();
           const voice = this.playNotes(
-            intervals.map((interval) => midiNote + interval),
+            this.getSelectedChordNotes(midiNote),
             envelope
           );
           this.activeVoices.set(midiNote, voice);
         },
         onRelease: (midiNote) => this.releaseVoice(midiNote),
+        getPlayedNotes: (midiNote) => this.getSelectedChordNotes(midiNote),
         onHover: (midiNote, noteName) => {
           const frequency = this.midiToFrequency(midiNote);
           this.view.frequencyOutput.textContent = `${noteName} \u2014 ${frequency.toFixed(2)} Hz`;
@@ -982,6 +1023,11 @@
         }
         return (pitchClass - rootPitchClass + 12) % 12;
       });
+    }
+    getSelectedChordNotes(rootMidiNote) {
+      return this.getSelectedChordIntervals().map(
+        (interval) => rootMidiNote + interval
+      );
     }
     playNotes(midiNotes, envelope) {
       const voices = midiNotes.map(

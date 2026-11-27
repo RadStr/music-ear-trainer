@@ -33,3 +33,5 @@ Also in the appView you are doing a lot of setting of variables, cant you like p
 27-11-26:20-06-18 Why is selectedChordId of type string? Type it better as a string union.
 
 Also add to agents.md the appview initializaiton methods - that is if you initializae some ui element it sohuld be inside of a method. idk if I am making it understandable, simply follow the current structure.
+
+27-11-26:20-11-14 Make sure that when playing a chord on the keyboard it shows highlights all the played keys not only the pressed one.

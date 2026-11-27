@@ -279,14 +279,15 @@ export class AppController {
           return;
         }
         this.activeVoices.get(midiNote)?.release();
-        const intervals: readonly number[] = this.getSelectedChordIntervals();
         const voice: PlayingAudio = this.playNotes(
-          intervals.map((interval: number): number => midiNote + interval),
+          this.getSelectedChordNotes(midiNote),
           envelope,
         );
         this.activeVoices.set(midiNote, voice);
       },
       onRelease: (midiNote: number): void => this.releaseVoice(midiNote),
+      getPlayedNotes: (midiNote: number): readonly number[] =>
+        this.getSelectedChordNotes(midiNote),
       onHover: (midiNote: number, noteName: string): void => {
         const frequency: number = this.midiToFrequency(midiNote);
         this.view.frequencyOutput.textContent = `${noteName} — ${frequency.toFixed(2)} Hz`;
@@ -320,6 +321,12 @@ export class AppController {
       }
       return (pitchClass - rootPitchClass + 12) % 12;
     });
+  }
+
+  private getSelectedChordNotes(rootMidiNote: number): readonly number[] {
+    return this.getSelectedChordIntervals().map(
+      (interval: number): number => rootMidiNote + interval,
+    );
   }
 
   private playNotes(midiNotes: readonly number[], envelope: Envelope): PlayingAudio {
