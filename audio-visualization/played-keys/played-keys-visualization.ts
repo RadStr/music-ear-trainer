@@ -27,7 +27,7 @@ export class PlayedKeysVisualization implements AudioVisualization {
     const keyHeight: number = height * 0.9;
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.font = `${Math.max(8, Math.min(14, keyWidth * 0.35))}px sans-serif`;
+    context.font = `${Math.max(10, Math.min(24, keyWidth * 0.35))}px sans-serif`;
 
     playedNotes.forEach((midiNote: number, index: number): void => {
       const x: number = index * keyWidth;

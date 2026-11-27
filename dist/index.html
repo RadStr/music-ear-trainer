@@ -418,7 +418,7 @@
       const keyHeight = height * 0.9;
       context.textAlign = "center";
       context.textBaseline = "middle";
-      context.font = `${Math.max(8, Math.min(14, keyWidth * 0.35))}px sans-serif`;
+      context.font = `${Math.max(10, Math.min(24, keyWidth * 0.35))}px sans-serif`;
       playedNotes.forEach((midiNote, index) => {
         const x = index * keyWidth;
         const isWhiteKey = WHITE_PITCH_CLASSES2.has(midiNote % 12);
@@ -3016,8 +3016,8 @@
     heading.textContent = "Played keys";
     const canvas = document.createElement("canvas");
     canvas.id = "played-keys-canvas";
-    canvas.width = 640;
-    canvas.height = 200;
+    canvas.width = 320;
+    canvas.height = 140;
     canvas.setAttribute("aria-label", "Currently played piano keys");
     panel.append(heading, canvas);
     return { panel, canvas };

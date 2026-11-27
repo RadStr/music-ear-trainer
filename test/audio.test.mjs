@@ -378,6 +378,7 @@ test("played keys visualization shows active MIDI note names and clears when non
     commands.filter(([command]) => command === "fillText").map(([, note]) => note),
     ["C4", "C♯4"],
   );
+  assert.equal(context.font, "24px sans-serif");
   assert.equal(commands.filter(([command]) => command === "fillRect").length, 2);
 
   commands.length = 0;

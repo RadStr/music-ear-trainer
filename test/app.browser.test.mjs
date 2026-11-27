@@ -136,7 +136,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.waitForTimeout(150);
     const playedKeyPixel = await page.locator("#played-keys-canvas").evaluate((canvas) => {
       const context = canvas.getContext("2d");
-      return Array.from(context.getImageData(320, 10, 1, 1).data);
+      return Array.from(context.getImageData(160, 10, 1, 1).data);
     });
     assert.ok(playedKeyPixel[3] > 0, "currently played keys should be drawn");
     const hasOscillatingWave = await page.locator("#audio-wave-canvas").evaluate((canvas) => {

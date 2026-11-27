@@ -484,8 +484,8 @@ function createPlayedKeysPanel(): VisualizationPanelView {
   heading.textContent = "Played keys";
   const canvas: HTMLCanvasElement = document.createElement("canvas");
   canvas.id = "played-keys-canvas";
-  canvas.width = 640;
-  canvas.height = 200;
+  canvas.width = 320;
+  canvas.height = 140;
   canvas.setAttribute("aria-label", "Currently played piano keys");
   panel.append(heading, canvas);
   return { panel, canvas };

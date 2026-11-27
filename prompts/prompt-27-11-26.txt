@@ -22,3 +22,5 @@ Also in the appView you are doing a lot of setting of variables, cant you like p
 
 27-11-26:19-33-08 Ok but in the appView you should do this for all the initializaitons there is more than the two i just mentioned.
 
+27-11-26:19-39-50 The shown key in visualization is too small.
+
