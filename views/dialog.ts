@@ -2,7 +2,7 @@
  * Closes a modal dialog when the user clicks its backdrop.
  * @param dialog The dialog whose backdrop should dismiss it.
  */
-export function closeOnBackdropClick(dialog: HTMLDialogElement): void {
+export function addBackdropClickListener(dialog: HTMLDialogElement): void {
   dialog.addEventListener("click", (event: MouseEvent): void => {
     if (event.target !== dialog) {
       return;
