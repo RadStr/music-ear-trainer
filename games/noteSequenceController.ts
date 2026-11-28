@@ -5,6 +5,7 @@ import type { Effect } from "../effects/Effect";
 import { midiNoteName, renderKeyboard } from "../keyboard";
 import { evaluateGuess, setGuessFeedback } from "./guessFeedback";
 import type { NoteSequenceView } from "./noteSequenceView";
+import { localize } from "../localization";
 
 const FIRST_GAME_NOTE: number = 60;
 const GAME_KEY_COUNT: number = 25;
@@ -143,7 +144,9 @@ export class NoteSequenceController {
     const noteCount: number = this.view.noteCountInput.valueAsNumber;
     if (!Number.isInteger(noteCount) || noteCount < 1 || noteCount > 20) {
       this.showSettingsForValidation();
-      this.view.noteCountInput.setCustomValidity("Enter a whole number from 1 to 20.");
+      this.view.noteCountInput.setCustomValidity(
+        localize("Enter a whole number from 1 to 20."),
+      );
       this.view.noteCountInput.reportValidity();
       return;
     }
@@ -152,7 +155,9 @@ export class NoteSequenceController {
     const failureLimit: number = this.view.failureLimitInput.valueAsNumber;
     if (!Number.isInteger(failureLimit) || failureLimit < 1 || failureLimit > 10) {
       this.showSettingsForValidation();
-      this.view.failureLimitInput.setCustomValidity("Enter a whole number from 1 to 10.");
+      this.view.failureLimitInput.setCustomValidity(
+        localize("Enter a whole number from 1 to 10."),
+      );
       this.view.failureLimitInput.reportValidity();
       return;
     }
@@ -161,7 +166,9 @@ export class NoteSequenceController {
     const hintsAllowed: number = this.view.hintLimitInput.valueAsNumber;
     if (!Number.isInteger(hintsAllowed) || hintsAllowed < 0 || hintsAllowed > 10) {
       this.showSettingsForValidation();
-      this.view.hintLimitInput.setCustomValidity("Enter a whole number from 0 to 10.");
+      this.view.hintLimitInput.setCustomValidity(
+        localize("Enter a whole number from 0 to 10."),
+      );
       this.view.hintLimitInput.reportValidity();
       return;
     }
@@ -347,7 +354,7 @@ export class NoteSequenceController {
     this.renderGuess();
     if (isCorrect) {
       for (const effect of this.winEffects) {
-        effect.trigger("Correct!");
+        effect.trigger(localize("Correct!"));
       }
       this.view.status.textContent = "Correct! You got the whole sequence.";
     } else if (gameFinished) {
@@ -365,7 +372,7 @@ export class NoteSequenceController {
     }
     this.hintsUsed += 1;
     this.updateHintsOutput();
-    window.alert("Note sequence");
+    window.alert(localize("Note sequence"));
   }
 
   private resetGuess(): void {

@@ -586,6 +586,25 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       .click();
     await page.getByRole("button", { name: "Edit envelope" }).click();
     assert.equal(await page.locator("#envelope-attack").inputValue(), "0.42");
+    const languageSelector = page.locator(".app-language-control select");
+    await languageSelector.selectOption("cs");
+    await page.waitForLoadState("domcontentloaded");
+    assert.equal(await page.locator("html").getAttribute("lang"), "cs");
+    await page.getByRole("heading", { name: "Hudební klaviatura" }).waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "Nastavení vizualizací" }).count(),
+      1,
+    );
+    await page.getByRole("button", { name: "Hra: posloupnost tónů" }).click();
+    await page.getByRole("heading", { name: "Posloupnost tónů" }).waitFor();
+    await page.locator("#sequence-note-count").fill("1");
+    await page
+      .locator("#note-sequence-controls")
+      .evaluate((form) => form.requestSubmit());
+    await page
+      .locator(".note-sequence-game-panel output")
+      .filter({ hasText: "Chybné pokusy: 0 / 3" })
+      .waitFor();
     assert.deepEqual(pageErrors, []);
   } finally {
     await browser?.close();

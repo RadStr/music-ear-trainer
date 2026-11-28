@@ -14,7 +14,9 @@ import { LocalStorageSettingsStorage } from "./model/local-storage-settings-stor
 import type { AppView } from "./views/appView";
 import { createAppView } from "./views/appView";
 import { createEnvelopeView, type EnvelopeView } from "./views/envelopeView";
+import { installLocalization } from "./localization";
 
+installLocalization();
 const settingsStorage: SettingsStorage = new LocalStorageSettingsStorage();
 const settings = settingsStorage.loadSettings();
 const envelopeView: EnvelopeView = createEnvelopeView();

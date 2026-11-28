@@ -1,5 +1,6 @@
 import { midiNoteName } from "../../keyboard";
 import type { AudioVisualization } from "../visualization";
+import { localize } from "../../localization";
 
 const MAX_BASE_NOTE_CYCLES: number = 32;
 const WAVE_COLORS: readonly string[] = [
@@ -53,15 +54,19 @@ export class StaticIntersectionVisualization implements AudioVisualization {
     const noteCounts: string = notes
       .map((midiNote: number, index: number): string => {
         const cycleCount: number = alignment.cycleCounts[index] ?? 1;
-        const cycleLabel: string = cycleCount === 1 ? "cycle" : "cycles";
+        const cycleLabel: string = localize(cycleCount === 1 ? "cycle" : "cycles");
         return `${midiNoteName(midiNote)}: ${cycleCount} ${cycleLabel}`;
       })
       .join(", ");
     const exactness: string = alignment.largestMismatch < 0.000001
       ? "These cycle counts align exactly."
-      : `This is the closest simple match within ${MAX_BASE_NOTE_CYCLES} cycles of the lowest note; equal-tempered notes may not align exactly.`;
+      : localize(
+          `This is the closest simple match within ${MAX_BASE_NOTE_CYCLES} cycles of the lowest note; equal-tempered notes may not align exactly.`,
+        );
     this.explanation.textContent =
-      `Cycle ratio ${alignment.cycleCounts.join(":")} (${noteCounts}). ${exactness}`;
+      localize(
+        `Cycle ratio ${alignment.cycleCounts.join(":")} (${noteCounts}). ${exactness}`,
+      );
   }
 
   private midiToFrequency(midiNote: number): number {

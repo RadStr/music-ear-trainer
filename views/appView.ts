@@ -1,6 +1,7 @@
 import { CHORDS } from "../games/pitchGameData";
 import { addBackdropClickListener } from "./dialog";
 import type { EnvelopeView } from "./envelopeView";
+import { createLanguageControl } from "../localization";
 
 export interface AppView {
   readonly element: HTMLElement;
@@ -346,7 +347,11 @@ function createAppHeader(gameNavigation: GameNavigationView): AppHeaderView {
   const visualizationSettings: VisualizationSettingsView = createVisualizationSettings();
   const actions: HTMLDivElement = document.createElement("div");
   actions.className = "app-header-actions";
-  actions.append(gameNavigation.element, visualizationSettings.button);
+  actions.append(
+    gameNavigation.element,
+    createLanguageControl(),
+    visualizationSettings.button,
+  );
   element.append(brand, volumeControl.element, actions);
   return {
     element,
@@ -810,6 +815,15 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       font-size: 0.88rem;
       font-weight: 600;
       gap: 0.75rem;
+    }
+    .app-language-control {
+      align-items: center;
+      display: flex;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+    .app-language-control select {
+      width: auto;
     }
     .app-volume-control input {
       padding: 0;

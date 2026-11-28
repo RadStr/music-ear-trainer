@@ -31,6 +31,7 @@ import { renderKeyboard } from "../keyboard";
 import { CustomAudioController } from "./customAudioController";
 import { EnvelopeController } from "./envelopeController";
 import { META_INSTRUMENTS, MetaAudioController } from "./metaAudioController";
+import { localize } from "../localization";
 
 type ChordSelection = KeyboardPlaybackSelection;
 
@@ -394,7 +395,9 @@ export class AppController {
   private renderSelectedKeyboard(): boolean {
     const keyCount: number = this.view.keyCountInput.valueAsNumber;
     if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
-      this.view.keyCountInput.setCustomValidity("Enter a whole number from 1 to 88.");
+      this.view.keyCountInput.setCustomValidity(
+        localize("Enter a whole number from 1 to 88."),
+      );
       this.view.keyCountInput.reportValidity();
       return false;
     }
@@ -548,7 +551,7 @@ export class AppController {
       this.persistSettings();
     } catch (error: unknown) {
       const message: string = error instanceof Error ? error.message : String(error);
-      this.view.customSampleUrlInput.setCustomValidity(message);
+      this.view.customSampleUrlInput.setCustomValidity(localize(message));
       this.view.customSampleUrlInput.reportValidity();
       this.view.soundStatus.textContent = `Unable to use sample directory: ${message}`;
     }

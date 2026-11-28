@@ -6,6 +6,7 @@ import { midiNoteName, renderKeyboard } from "../keyboard";
 import { evaluateGuess, setGuessFeedback } from "./guessFeedback";
 import { NOTE_PITCH_CLASSES, type PitchPattern } from "./pitchGameData";
 import type { PitchGameKind, PitchIdentificationView } from "./pitchIdentificationView";
+import { localize } from "../localization";
 
 const FIRST_GAME_NOTE: number = 60;
 const GAME_KEY_COUNT: number = 25;
@@ -189,8 +190,9 @@ export class PitchIdentificationController {
     );
     if (availablePatterns.length === 0) {
       this.showSettingsForValidation();
-      this.view.settingsStatus.textContent =
-        `Select at least one ${this.kind === "chords" ? "chord" : "scale"}.`;
+      this.view.settingsStatus.textContent = localize(
+        `Select at least one ${this.kind === "chords" ? "chord" : "scale"}.`,
+      );
       return;
     }
     this.view.settingsStatus.textContent = "";
@@ -198,7 +200,9 @@ export class PitchIdentificationController {
     const failureLimit: number = this.view.failureLimitInput.valueAsNumber;
     if (!Number.isInteger(failureLimit) || failureLimit < 1 || failureLimit > 10) {
       this.showSettingsForValidation();
-      this.view.failureLimitInput.setCustomValidity("Enter a whole number from 1 to 10.");
+      this.view.failureLimitInput.setCustomValidity(
+        localize("Enter a whole number from 1 to 10."),
+      );
       this.view.failureLimitInput.reportValidity();
       return;
     }
@@ -207,7 +211,9 @@ export class PitchIdentificationController {
     const hintsAllowed: number = this.view.hintLimitInput.valueAsNumber;
     if (!Number.isInteger(hintsAllowed) || hintsAllowed < 0 || hintsAllowed > 10) {
       this.showSettingsForValidation();
-      this.view.hintLimitInput.setCustomValidity("Enter a whole number from 0 to 10.");
+      this.view.hintLimitInput.setCustomValidity(
+        localize("Enter a whole number from 0 to 10."),
+      );
       this.view.hintLimitInput.reportValidity();
       return;
     }
@@ -433,7 +439,7 @@ export class PitchIdentificationController {
     this.renderGuess();
     if (isCorrect) {
       for (const effect of this.winEffects) {
-        effect.trigger("Correct!");
+        effect.trigger(localize("Correct!"));
       }
     }
 
@@ -472,7 +478,9 @@ export class PitchIdentificationController {
     }
     this.hintsUsed += 1;
     this.updateHintsOutput();
-    window.alert(this.kind === "chords" ? "Chord and notes guessing" : "Scale guessing");
+    window.alert(
+      localize(this.kind === "chords" ? "Chord and notes guessing" : "Scale guessing"),
+    );
   }
 
   private resetGuess(): void {
