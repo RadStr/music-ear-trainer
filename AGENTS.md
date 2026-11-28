@@ -42,7 +42,9 @@ Run the smallest relevant check before finishing. Run both commands when a chang
 ## Architecture
 
 - Keep translations in `localization/en/` and `localization/cs/`; add each user-facing string to both language files when introducing or changing UI text. The English keys and Czech entries are type-checked for parity.
-- Initialize localization with `installLocalization()` before building the UI. DOM text and accessible labels are translated automatically; call `localize()` for browser messages and other text outside the DOM. Keep the document language in sync with the selected locale.
+- Store the selected locale in `AppSettings` and expose language changes through the top-right language button. Initialize localization with `installLocalization()` using the loaded locale before building the UI.
+- Mark a language option with an `(AI)` suffix in the language chooser when its translations were AI-generated (currently `CZ (AI)`); do not use that suffix for human-created translations. Keep these labels in `settings/language-settings.ts`.
+- DOM text and accessible labels are translated automatically; call `localize()` for browser messages and other text outside the DOM. Keep the document language in sync with the selected locale.
 - Place each method or class in the existing file that owns the same responsibility.
 - Keep the backend-neutral `SettingsStorage` interface in `model/settings-storage.ts` and storage implementations such as `LocalStorageSettingsStorage` in separate files under `model/`. Define persisted application settings and defaults in feature-specific files under `settings/`, with `settings/app-settings.ts` composing them.
 - Keep shared game guess evaluation and red/green feedback in `games/guessFeedback.ts`; game controllers should reuse it with the appropriate ordered or unordered matching mode.

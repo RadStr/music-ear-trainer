@@ -1,7 +1,8 @@
 import { CHORDS } from "../games/pitchGameData";
+import { LOCALE_CHOICES, type Locale } from "../settings/language-settings";
 import { addBackdropClickListener } from "./dialog";
 import type { EnvelopeView } from "./envelopeView";
-import { createLanguageControl } from "../localization";
+import { localize } from "../localization";
 
 export interface AppView {
   readonly element: HTMLElement;
@@ -41,6 +42,7 @@ export interface AppView {
   readonly chordDialog: HTMLDialogElement;
   readonly chordSelect: HTMLSelectElement;
   readonly chordModeOutput: HTMLOutputElement;
+  readonly languageSelect: HTMLSelectElement;
 }
 
 interface VisualizationPanelView {
@@ -68,6 +70,14 @@ interface AppHeaderView extends VisualizationSettingsView {
   readonly volumeInput: HTMLInputElement;
   readonly volumeOutput: HTMLOutputElement;
   readonly gameNavigation: GameNavigationView;
+  readonly languageDialog: HTMLDialogElement;
+  readonly languageSelect: HTMLSelectElement;
+}
+
+interface LanguageControlView {
+  readonly button: HTMLButtonElement;
+  readonly dialog: HTMLDialogElement;
+  readonly select: HTMLSelectElement;
 }
 
 interface GameNavigationView {
@@ -336,21 +346,86 @@ function createChordSettings(): ChordSettingsView {
 }
 
 /**
- * Creates the application header with volume, game, and visualization controls.
+ * Creates a language button and its accessible locale-selection dialog.
+ * @param locale The locale currently selected in application settings.
+ * @returns The language button, dialog, and selector.
+ */
+function createLanguageControl(locale: Locale): LanguageControlView {
+  const selectedChoice = LOCALE_CHOICES.find(
+    (choice): boolean => choice.locale === locale,
+  );
+  if (!selectedChoice) {
+    throw new Error(`Unsupported language selection: ${locale}`);
+  }
+  const button: HTMLButtonElement = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-outline-secondary";
+  button.textContent = `${localize("Language")}: ${selectedChoice.label}`;
+
+  const dialog: HTMLDialogElement = document.createElement("dialog");
+  dialog.id = "language-settings-dialog";
+  dialog.className = "language-settings-dialog";
+  dialog.setAttribute("aria-labelledby", "language-settings-title");
+  button.setAttribute("aria-haspopup", "dialog");
+  button.setAttribute("aria-controls", dialog.id);
+  addBackdropClickListener(dialog);
+
+  const title: HTMLHeadingElement = document.createElement("h2");
+  title.id = "language-settings-title";
+  title.textContent = localize("Select language");
+  const form: HTMLFormElement = document.createElement("form");
+  form.method = "dialog";
+  const label: HTMLLabelElement = document.createElement("label");
+  label.htmlFor = "language-select";
+  label.textContent = localize("Language");
+  const select: HTMLSelectElement = document.createElement("select");
+  select.id = "language-select";
+  select.className = "form-select";
+  select.setAttribute("aria-label", localize("Language"));
+  for (const choice of LOCALE_CHOICES) {
+    const option: HTMLOptionElement = document.createElement("option");
+    option.value = choice.locale;
+    option.textContent = choice.label;
+    select.append(option);
+  }
+  select.value = locale;
+  label.append(select);
+
+  const actions: HTMLDivElement = document.createElement("div");
+  actions.className = "visualization-settings-actions";
+  const doneButton: HTMLButtonElement = document.createElement("button");
+  doneButton.type = "submit";
+  doneButton.className = "btn btn-primary";
+  doneButton.textContent = localize("Done");
+  actions.append(doneButton);
+  form.append(label, actions);
+  dialog.append(title, form);
+  button.addEventListener("click", (): void => dialog.showModal());
+  return { button, dialog, select };
+}
+
+/**
+ * Creates the application header with volume, game, visualization, and language controls.
+ * @param gameNavigation The navigation for the available learning games.
+ * @param locale The locale currently selected in application settings.
  * @returns Header elements and controls used by the app view and controller.
  */
-function createAppHeader(gameNavigation: GameNavigationView): AppHeaderView {
+function createAppHeader(
+  gameNavigation: GameNavigationView,
+  locale: Locale,
+): AppHeaderView {
   const element: HTMLElement = document.createElement("header");
   element.className = "app-header";
   const brand: HTMLDivElement = createBrand();
   const volumeControl: VolumeControlView = createVolumeControl();
   const visualizationSettings: VisualizationSettingsView = createVisualizationSettings();
+  const languageControl: LanguageControlView = createLanguageControl(locale);
   const actions: HTMLDivElement = document.createElement("div");
   actions.className = "app-header-actions";
   actions.append(
     gameNavigation.element,
-    createLanguageControl(),
     visualizationSettings.button,
+    languageControl.button,
   );
   element.append(brand, volumeControl.element, actions);
   return {
@@ -358,6 +433,8 @@ function createAppHeader(gameNavigation: GameNavigationView): AppHeaderView {
     volumeInput: volumeControl.input,
     volumeOutput: volumeControl.output,
     gameNavigation,
+    languageDialog: languageControl.dialog,
+    languageSelect: languageControl.select,
     ...visualizationSettings,
   };
 }
@@ -745,16 +822,12 @@ function createStaticIntersectionPanel(): StaticIntersectionPanelView {
 }
 
 /**
- * Builds the main application view and its audio source controls.
- * @param envelopeView The envelope control view to include in the application.
- * @returns The application view elements and controls.
- */
-/**
  * Builds the application UI and exposes its interactive controls.
  * @param envelopeView The envelope editor used by the keyboard screen.
+ * @param locale The locale selected in application settings.
  * @returns The application elements and controller-facing controls.
  */
-export function createAppView(envelopeView: EnvelopeView): AppView {
+export function createAppView(envelopeView: EnvelopeView, locale: Locale): AppView {
   const styles: HTMLStyleElement = createStyleElement();
   styles.textContent = `
     :root {
@@ -816,15 +889,6 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       font-weight: 600;
       gap: 0.75rem;
     }
-    .app-language-control {
-      align-items: center;
-      display: flex;
-      gap: 0.4rem;
-      white-space: nowrap;
-    }
-    .app-language-control select {
-      width: auto;
-    }
     .app-volume-control input {
       padding: 0;
       width: 8rem;
@@ -835,6 +899,7 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       min-width: 2.5rem;
     }
     .visualization-settings-dialog,
+    .language-settings-dialog,
     .chord-settings-dialog,
     .keyboard-settings-dialog,
     .envelope-editor-dialog {
@@ -847,12 +912,14 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
       width: 26rem;
     }
     .visualization-settings-dialog::backdrop,
+    .language-settings-dialog::backdrop,
     .chord-settings-dialog::backdrop,
     .keyboard-settings-dialog::backdrop,
     .envelope-editor-dialog::backdrop {
       background: #20233a66;
     }
     .visualization-settings-dialog h2,
+    .language-settings-dialog h2,
     .chord-settings-dialog h2,
     .keyboard-settings-dialog h2,
     .envelope-editor-dialog h2 {
@@ -1190,10 +1257,16 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
 
   const app: HTMLElement = createAppRoot();
   const gameNavigation: GameNavigationView = createGameNavigation();
-  const header: AppHeaderView = createAppHeader(gameNavigation);
+  const header: AppHeaderView = createAppHeader(gameNavigation, locale);
   const keyboardScreen: KeyboardScreenView = createKeyboardScreen(envelopeView);
   const visualizations: AppVisualizationsView = createVisualizations();
-  app.append(header.element, keyboardScreen.element, visualizations.element, header.dialog);
+  app.append(
+    header.element,
+    keyboardScreen.element,
+    visualizations.element,
+    header.dialog,
+    header.languageDialog,
+  );
   document.body.replaceChildren(app);
 
   return {
@@ -1234,5 +1307,6 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     chordDialog: keyboardScreen.chordDialog,
     chordSelect: keyboardScreen.chordSelect,
     chordModeOutput: keyboardScreen.chordModeOutput,
+    languageSelect: header.languageSelect,
   };
 }

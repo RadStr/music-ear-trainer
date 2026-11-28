@@ -1,9 +1,7 @@
 import { czech } from "./cs/strings";
 import { english } from "./en/strings";
+import type { Locale } from "../settings/language-settings";
 
-export type Locale = "cs" | "en";
-
-const LANGUAGE_STORAGE_KEY: string = "radstr-learning-by-ear.locale";
 const czechTranslations: Readonly<Record<keyof typeof english, string>> = czech;
 const translations: Readonly<Record<Locale, Readonly<Record<keyof typeof english, string>>>> = {
   cs: czechTranslations,
@@ -24,11 +22,6 @@ const templateTranslations: readonly (readonly [RegExp, string, readonly string[
     });
 
 let activeLocale: Locale = "en";
-
-/** Returns the selected language. */
-export function getLocale(): Locale {
-  return activeLocale;
-}
 
 /** Translates a visible string or a supported interpolated message. */
 export function localize(text: string): string {
@@ -81,10 +74,12 @@ function localizeNode(node: Node): void {
   }
 }
 
-/** Initializes the saved locale, updates the document language, and localizes dynamic UI text. */
-export function installLocalization(): void {
-  const savedLocale: string | null = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  activeLocale = savedLocale === "cs" ? "cs" : "en";
+/**
+ * Sets the document language and localizes dynamic UI text for the selected locale.
+ * @param locale The language loaded from application settings.
+ */
+export function installLocalization(locale: Locale): void {
+  activeLocale = locale;
   document.documentElement.lang = activeLocale;
   const observer: MutationObserver = new MutationObserver(
     (mutations: readonly MutationRecord[]): void => {
@@ -107,28 +102,4 @@ export function installLocalization(): void {
     subtree: true,
   });
   localizeNode(document.documentElement);
-}
-
-/** Creates the language selector and reloads the app when the user changes languages. */
-export function createLanguageControl(): HTMLLabelElement {
-  const label: HTMLLabelElement = document.createElement("label");
-  label.className = "app-language-control";
-  label.textContent = localize("Language");
-  const select: HTMLSelectElement = document.createElement("select");
-  select.className = "form-select";
-  select.setAttribute("aria-label", localize("Language"));
-  for (const locale of ["en", "cs"] as const) {
-    const option: HTMLOptionElement = document.createElement("option");
-    option.value = locale;
-    option.textContent = locale === "en" ? localize("English") : localize("Czech");
-    option.selected = locale === activeLocale;
-    select.append(option);
-  }
-  select.addEventListener("change", (): void => {
-    const locale: Locale = select.value === "cs" ? "cs" : "en";
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, locale);
-    window.location.reload();
-  });
-  label.append(select);
-  return label;
 }

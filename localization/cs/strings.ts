@@ -3,8 +3,8 @@ import { english } from "../en/strings";
 export const czech = {
   "LISTEN · LEARN · PLAY": "POSLOUCHEJ · UČ SE · HRAJ",
   Language: "Jazyk",
+  "Select language": "Vyberte jazyk",
   English: "English",
-  Czech: "Čeština",
   chord: "akord",
   scale: "stupnici",
   chords: "akordy",

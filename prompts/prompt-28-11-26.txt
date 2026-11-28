@@ -24,3 +24,8 @@ Also the confetti should go from bottom to up.
 28-11-26:12-19-56 Remove dist directory from GitHub
 
 28-11-26:12-23-17 Add localization. Either use some library or do it manually. The localizations should be present in localization directory under "cs", "en" subdirectories. For now add only these two languages. Also add the information about localization to agents.md
+
+28-11-26:12-36-29 1) The locale should be part of settings.
+2) You should add button at top right that lets me change language
+3) Since the czech version is ai generated put into the combobox "CZ (AI)"
+4) Integrate the AI into the agents.md that is if a new translation is ai generated it should have AI suffix in the combobox that lets me choose language.

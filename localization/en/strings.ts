@@ -1,8 +1,8 @@
 export const english = {
   "LISTEN · LEARN · PLAY": "LISTEN · LEARN · PLAY",
   Language: "Language",
+  "Select language": "Select language",
   English: "English",
-  Czech: "Czech",
   chord: "chord",
   scale: "scale",
   chords: "chords",

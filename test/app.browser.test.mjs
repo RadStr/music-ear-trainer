@@ -73,8 +73,8 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     assert.equal(await headerActions.evaluate((element) => getComputedStyle(element).display), "flex");
     assert.equal(
       await headerActions.getByRole("button").count(),
-      4,
-      "game buttons should sit beside visualization settings in the header",
+      5,
+      "game, visualization, and language buttons should share the header",
     );
     const settingsButton = page.getByRole("button", { name: "Visualization settings" });
     const settingsDialog = page.getByRole("dialog", { name: "Visualization settings" });
@@ -586,14 +586,31 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       .click();
     await page.getByRole("button", { name: "Edit envelope" }).click();
     assert.equal(await page.locator("#envelope-attack").inputValue(), "0.42");
-    const languageSelector = page.locator(".app-language-control select");
-    await languageSelector.selectOption("cs");
+    await page.getByRole("dialog", { name: "ADSR envelope" })
+      .getByRole("button", { name: "Done" })
+      .click();
+    const languageButton = page.getByRole("button", { name: "Language: English" });
+    await languageButton.click();
+    const languageDialog = page.getByRole("dialog", { name: "Select language" });
+    await languageDialog
+      .getByRole("combobox", { name: "Language" })
+      .selectOption("cs");
     await page.waitForLoadState("domcontentloaded");
     assert.equal(await page.locator("html").getAttribute("lang"), "cs");
     await page.getByRole("heading", { name: "Hudební klaviatura" }).waitFor();
     assert.equal(
       await page.getByRole("button", { name: "Nastavení vizualizací" }).count(),
       1,
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "Jazyk: CZ (AI)" }).count(),
+      1,
+    );
+    assert.equal(
+      await page.evaluate(
+        () => JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")).locale,
+      ),
+      "cs",
     );
     await page.getByRole("button", { name: "Hra: posloupnost tónů" }).click();
     await page.getByRole("heading", { name: "Posloupnost tónů" }).waitFor();
@@ -605,6 +622,39 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       .locator(".note-sequence-game-panel output")
       .filter({ hasText: "Chybné pokusy: 0 / 3" })
       .waitFor();
+
+    await page.evaluate(() => {
+      const settings = JSON.parse(
+        localStorage.getItem("radstr-learning-by-ear.settings"),
+      );
+      settings.version = 1;
+      delete settings.locale;
+      localStorage.setItem("radstr-learning-by-ear.settings", JSON.stringify(settings));
+      localStorage.setItem("radstr-learning-by-ear.locale", "cs");
+    });
+    await page.reload();
+    assert.equal(await page.locator("html").getAttribute("lang"), "cs");
+    const upgradedSettings = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")),
+    );
+    assert.equal(upgradedSettings.version, 2);
+    assert.equal(upgradedSettings.locale, "cs");
+    assert.equal(upgradedSettings.keyboard.keyCount, 36);
+    assert.equal(await page.evaluate(() =>
+      localStorage.getItem("radstr-learning-by-ear.locale"),
+    ), null);
+    await page.evaluate(() => {
+      localStorage.removeItem("radstr-learning-by-ear.settings");
+      localStorage.setItem("radstr-learning-by-ear.locale", "cs");
+    });
+    await page.reload();
+    assert.equal(await page.locator("html").getAttribute("lang"), "cs");
+    const migratedLocaleOnlySettings = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")),
+    );
+    assert.equal(migratedLocaleOnlySettings.version, 2);
+    assert.equal(migratedLocaleOnlySettings.locale, "cs");
+    assert.equal(migratedLocaleOnlySettings.keyboard.keyCount, 88);
     assert.deepEqual(pageErrors, []);
   } finally {
     await browser?.close();

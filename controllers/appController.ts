@@ -17,6 +17,7 @@ import {
   DEFAULT_APP_SETTINGS,
   type AppSettings,
 } from "../settings/app-settings";
+import type { Locale } from "../settings/language-settings";
 import {
   isAudioSource,
   isKeyboardPlaybackSelection,
@@ -320,6 +321,15 @@ export class AppController {
     }
 
     return this.trackActiveNote(midiNote, playingAudio);
+  }
+
+  /**
+   * Updates the selected language in the persisted application settings.
+   * @param locale The locale to save for the next application load.
+   */
+  setLocale(locale: Locale): void {
+    this.settings = { ...this.settings, locale };
+    this.settingsStorage.storeSettings(this.settings);
   }
 
   private trackActiveNote(midiNote: number, voice: PlayingAudio): PlayingAudio {

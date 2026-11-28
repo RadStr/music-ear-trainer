@@ -15,16 +15,18 @@ import type { AppView } from "./views/appView";
 import { createAppView } from "./views/appView";
 import { createEnvelopeView, type EnvelopeView } from "./views/envelopeView";
 import { installLocalization } from "./localization";
+import { DEFAULT_LOCALE, isLocale } from "./settings/language-settings";
 
-installLocalization();
 const settingsStorage: SettingsStorage = new LocalStorageSettingsStorage();
 const settings = settingsStorage.loadSettings();
+const locale = settings?.locale ?? DEFAULT_LOCALE;
+installLocalization(locale);
 const envelopeView: EnvelopeView = createEnvelopeView();
 const envelopeController: EnvelopeController = new EnvelopeController(
   envelopeView,
   settings?.envelope ?? DEFAULT_ENVELOPE,
 );
-const appView: AppView = createAppView(envelopeView);
+const appView: AppView = createAppView(envelopeView, locale);
 const noteSequenceView = createNoteSequenceView();
 const chordGameView = createPitchIdentificationView(
   "chords",
@@ -49,6 +51,14 @@ const appController = new AppController(
   settingsStorage,
   settings,
 );
+appView.languageSelect.addEventListener("change", (): void => {
+  const locale: string = appView.languageSelect.value;
+  if (!isLocale(locale)) {
+    throw new Error(`Unsupported language selection: ${locale}`);
+  }
+  appController.setLocale(locale);
+  window.location.reload();
+});
 const noteSequenceController = new NoteSequenceController(
   noteSequenceView,
   (midiNote: number, envelope: Envelope) => appController.playNote(midiNote, envelope),
