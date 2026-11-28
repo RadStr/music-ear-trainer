@@ -440,6 +440,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       await correctSequenceGuess.evaluate((button) => getComputedStyle(button).backgroundColor),
       "rgb(230, 244, 234)",
     );
+    assert.equal(await page.locator(".confetti-effect").count(), 1);
 
     await page.getByRole("button", { name: "Back to keyboard" }).click();
     await page.getByRole("button", { name: "Chord and notes game" }).click();

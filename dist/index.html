@@ -226,6 +226,70 @@
     }
   };
 
+  // musical-keyboard-input/mouse/mouse-keyboard-input.ts
+  var MOUSE_INPUT_ID = "mouse";
+  var MouseKeyboardInput = class {
+    /**
+     * Connects mouse press, drag, release, and hover events to the rendered keys.
+     * @param target The keyboard element, key buttons, callbacks, and listener lifetime.
+     */
+    connect(target) {
+      let activeMidiNote;
+      const pressNote = (midiNote) => {
+        if (activeMidiNote === midiNote) {
+          return;
+        }
+        if (activeMidiNote !== void 0) {
+          target.callbacks.onRelease(MOUSE_INPUT_ID);
+        }
+        activeMidiNote = midiNote;
+        target.callbacks.onPress(midiNote, MOUSE_INPUT_ID);
+      };
+      const releaseNote = () => {
+        if (activeMidiNote === void 0) {
+          return;
+        }
+        activeMidiNote = void 0;
+        target.callbacks.onRelease(MOUSE_INPUT_ID);
+      };
+      for (const [midiNote, key] of target.keysByMidiNote) {
+        key.addEventListener(
+          "mousedown",
+          (event) => {
+            if (event.button !== 0 || activeMidiNote !== void 0) {
+              return;
+            }
+            event.preventDefault();
+            pressNote(midiNote);
+          },
+          { signal: target.signal }
+        );
+        key.addEventListener(
+          "mouseenter",
+          (event) => {
+            if (event.buttons === 1) {
+              pressNote(midiNote);
+            }
+            target.callbacks.onHover(midiNote);
+          },
+          { signal: target.signal }
+        );
+        key.addEventListener(
+          "mouseleave",
+          () => {
+            if (activeMidiNote === void 0) {
+              target.callbacks.onLeave();
+            }
+          },
+          { signal: target.signal }
+        );
+      }
+      window.addEventListener("mouseup", releaseNote, { signal: target.signal });
+      window.addEventListener("blur", releaseNote, { signal: target.signal });
+      target.signal.addEventListener("abort", releaseNote, { once: true });
+    }
+  };
+
   // keyboard.ts
   var WHITE_PITCH_CLASSES = /* @__PURE__ */ new Set([0, 2, 4, 5, 7, 9, 11]);
   var NOTE_NAMES = ["C", "C\u266F", "D", "D\u266F", "E", "F", "F\u266F", "G", "G\u266F", "A", "A\u266F", "B"];
@@ -241,7 +305,7 @@
     return `${noteNameBase}${Math.floor(midiNote / 12) - 1}`;
   }
   var KEYBOARD_EVENT_CONTROLLERS = /* @__PURE__ */ new WeakMap();
-  function renderKeyboard(container, keyCount, callbacks, firstMidiNote = 21) {
+  function renderKeyboard(container, keyCount, callbacks, firstMidiNote = 21, inputs = [new MouseKeyboardInput()]) {
     if (!Number.isInteger(keyCount) || keyCount < 1) {
       throw new RangeError("The keyboard must contain at least one key.");
     }
@@ -309,16 +373,13 @@
       document.head.append(styles);
     }
     const viewport = document.createElement("div");
-    KEYBOARD_EVENT_CONTROLLERS.get(container)?.abort();
-    const eventController = new AbortController();
-    KEYBOARD_EVENT_CONTROLLERS.set(container, eventController);
     viewport.className = "keyboard-viewport";
     const keyboard = document.createElement("div");
     keyboard.className = "piano-keyboard";
     keyboard.setAttribute("role", "group");
     keyboard.setAttribute("aria-label", "Musical keyboard");
     keyboard.style.width = `max(100%, ${layoutWhiteKeyCount * 42}px)`;
-    const pressedKeys = /* @__PURE__ */ new Map();
+    const pressedInputs = /* @__PURE__ */ new Map();
     const keysByMidiNote = /* @__PURE__ */ new Map();
     const highlightedNoteCounts = /* @__PURE__ */ new Map();
     const updateNoteHighlight = (midiNote, isPressed) => {
@@ -337,38 +398,40 @@
         highlightedNoteCounts.set(midiNote, currentCount - 1);
       }
     };
-    const pressKey = (key, midiNote) => {
+    const pressKey = (midiNote, inputId) => {
+      if (pressedInputs.has(inputId)) {
+        return;
+      }
       const playedNotes = callbacks.getPlayedNotes?.(midiNote) ?? [midiNote];
       const highlightedNotes = Array.from(
         /* @__PURE__ */ new Set([midiNote, ...playedNotes])
       );
-      pressedKeys.set(key, { midiNote, highlightedNotes });
+      pressedInputs.set(inputId, { midiNote, highlightedNotes });
       for (const highlightedNote of highlightedNotes) {
         updateNoteHighlight(highlightedNote, true);
       }
+      callbacks.onPress(midiNote, inputId);
     };
-    const releasePressedKey = (key) => {
-      const pressedKey = pressedKeys.get(key);
+    const releasePressedInput = (inputId) => {
+      const pressedKey = pressedInputs.get(inputId);
       if (!pressedKey) {
         return;
       }
-      pressedKeys.delete(key);
+      pressedInputs.delete(inputId);
       for (const highlightedNote of pressedKey.highlightedNotes) {
         updateNoteHighlight(highlightedNote, false);
       }
-      callbacks.onRelease(pressedKey.midiNote);
+      callbacks.onRelease(pressedKey.midiNote, inputId);
     };
-    const releasePressedKeys = () => {
-      for (const key of Array.from(pressedKeys.keys())) {
-        releasePressedKey(key);
+    const releasePressedInputs = () => {
+      for (const inputId of Array.from(pressedInputs.keys())) {
+        releasePressedInput(inputId);
       }
     };
-    document.addEventListener("mouseup", releasePressedKeys, {
-      signal: eventController.signal
-    });
-    window.addEventListener("blur", releasePressedKeys, {
-      signal: eventController.signal
-    });
+    const eventController = new AbortController();
+    eventController.signal.addEventListener("abort", releasePressedInputs, { once: true });
+    KEYBOARD_EVENT_CONTROLLERS.get(container)?.abort();
+    KEYBOARD_EVENT_CONTROLLERS.set(container, eventController);
     let whiteKeyIndex = 0;
     for (const midiNote of midiNotes) {
       const pitchClass = midiNote % 12;
@@ -388,39 +451,25 @@
         key.style.left = `${Math.max(0, whiteKeyIndex * whiteKeyWidth - blackKeyWidth / 2)}%`;
         key.style.width = `${blackKeyWidth}%`;
       }
-      key.addEventListener("mousedown", (event) => {
-        if (event.button !== 0 || pressedKeys.has(key)) {
-          return;
-        }
-        event.preventDefault();
-        pressKey(key, midiNote);
-        callbacks.onPress(midiNote);
-      });
-      key.addEventListener("mouseenter", (_event) => {
-        if (_event.buttons === 1) {
-          const pressedEntry = Array.from(pressedKeys.entries()).find(
-            ([pressedKey]) => pressedKey !== key
-          );
-          if (pressedEntry) {
-            const [pressedKey] = pressedEntry;
-            pressKey(key, midiNote);
-            callbacks.onPress(midiNote);
-            releasePressedKey(pressedKey);
-            callbacks.onHover(midiNote, noteName);
-            return;
-          }
-        }
-        callbacks.onHover(midiNote, noteName);
-      });
-      key.addEventListener("mouseleave", (_event) => {
-        if (pressedKeys.size === 0) {
-          callbacks.onLeave();
-        }
-      });
       keyboard.append(key);
     }
     viewport.append(keyboard);
     container.replaceChildren(viewport);
+    const inputCallbacks = {
+      onPress: (midiNote, inputId) => pressKey(midiNote, inputId),
+      onRelease: (inputId) => releasePressedInput(inputId),
+      onHover: (midiNote) => callbacks.onHover(midiNote, midiNoteName(midiNote)),
+      onLeave: () => callbacks.onLeave()
+    };
+    const inputTarget = {
+      keyboard,
+      keysByMidiNote,
+      callbacks: inputCallbacks,
+      signal: eventController.signal
+    };
+    for (const input of inputs) {
+      input.connect(inputTarget);
+    }
     const c3Key = keyboard.querySelector(`[aria-label="${midiNoteName(C3_MIDI_NOTE)}"]`);
     if (c3Key) {
       viewport.scrollLeft = c3Key.offsetLeft;
@@ -696,6 +745,180 @@
     }
   ];
 
+  // model/settings-storage.ts
+  var SETTINGS_VERSION = 1;
+  var DEFAULT_APP_SETTINGS = {
+    version: SETTINGS_VERSION,
+    visualizations: {
+      audioWave: true,
+      playedKeys: true,
+      sineIntersection: true,
+      staticIntersection: true
+    },
+    envelope: DEFAULT_ENVELOPE,
+    keyboard: {
+      keyCount: 88,
+      playbackSelection: "single-note",
+      audioSource: "sine",
+      customSampleDirectoryUrl: ""
+    },
+    volume: 70
+  };
+  var STORAGE_KEY = "radstr-learning-by-ear.settings";
+  function isRecord(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function isAudioSource(value) {
+    return value === "sine" || value === "square" || value === "sawtooth" || value === "meta-piano" || value === "meta-nylon-guitar" || value === "meta-steel-guitar" || value === "custom";
+  }
+  function isKeyboardPlaybackSelection(value) {
+    return value === "single-note" || CHORDS.some((chord) => chord.id === value);
+  }
+  function isEnvelope(value) {
+    return isRecord(value) && typeof value.attack === "number" && Number.isFinite(value.attack) && value.attack >= 0 && value.attack <= 5 && typeof value.decay === "number" && Number.isFinite(value.decay) && value.decay >= 0 && value.decay <= 5 && typeof value.sustain === "number" && Number.isFinite(value.sustain) && value.sustain >= 0 && value.sustain <= 1 && typeof value.release === "number" && Number.isFinite(value.release) && value.release >= 0 && value.release <= 5;
+  }
+  function isAppSettings(value) {
+    if (!isRecord(value) || value.version !== SETTINGS_VERSION) {
+      return false;
+    }
+    const visualizations = value.visualizations;
+    const keyboard = value.keyboard;
+    return isRecord(visualizations) && typeof visualizations.audioWave === "boolean" && typeof visualizations.playedKeys === "boolean" && typeof visualizations.sineIntersection === "boolean" && typeof visualizations.staticIntersection === "boolean" && isEnvelope(value.envelope) && isRecord(keyboard) && Number.isInteger(keyboard.keyCount) && typeof keyboard.keyCount === "number" && keyboard.keyCount >= 1 && keyboard.keyCount <= 88 && isKeyboardPlaybackSelection(keyboard.playbackSelection) && isAudioSource(keyboard.audioSource) && typeof keyboard.customSampleDirectoryUrl === "string" && typeof value.volume === "number" && Number.isInteger(value.volume) && value.volume >= 0 && value.volume <= 100;
+  }
+  var LocalStorageSettingsStorage = class {
+    /**
+     * Loads validated settings from browser storage, or returns undefined when none are saved.
+     * Invalid saved data is reported and ignored so the app can start with its defaults.
+     * @returns The saved application settings, if a valid record exists.
+     */
+    loadSettings() {
+      const serializedSettings = window.localStorage.getItem(STORAGE_KEY);
+      if (serializedSettings === null) {
+        return void 0;
+      }
+      let parsedSettings;
+      try {
+        parsedSettings = JSON.parse(serializedSettings);
+      } catch (error) {
+        console.error("Saved settings are not valid JSON; defaults will be used.", error);
+        return void 0;
+      }
+      if (!isAppSettings(parsedSettings)) {
+        console.error(
+          "Saved settings have an unsupported or invalid format; defaults will be used."
+        );
+        return void 0;
+      }
+      return parsedSettings;
+    }
+    /**
+     * Serializes the grouped application settings to browser storage.
+     * @param settings The complete settings record to save.
+     */
+    storeSettings(settings2) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings2));
+    }
+  };
+
+  // musical-keyboard-input/computer-keyboard/key-mappings.ts
+  var COMPUTER_KEYBOARD_NOTE_OFFSETS = /* @__PURE__ */ new Map([
+    ["KeyA", 0],
+    ["KeyW", 1],
+    ["KeyS", 2],
+    ["KeyE", 3],
+    ["KeyD", 4],
+    ["KeyF", 5],
+    ["KeyT", 6],
+    ["KeyG", 7],
+    ["KeyY", 8],
+    ["KeyH", 9],
+    ["KeyU", 10],
+    ["KeyJ", 11],
+    ["KeyK", 12]
+  ]);
+  var COMPUTER_KEYBOARD_BASE_MIDI_NOTE = 48;
+
+  // musical-keyboard-input/computer-keyboard/computer-keyboard-input.ts
+  var OCTAVE_SEMITONES = 12;
+  var MIN_OCTAVE_SHIFT = -4;
+  var MAX_OCTAVE_SHIFT = 5;
+  var ComputerKeyboardInput = class {
+    constructor() {
+      this.octaveShift = 0;
+    }
+    /**
+     * Connects piano-shaped computer-keyboard keys and octave controls to the rendered keyboard.
+     * @param target The keyboard element, callbacks, and listener lifetime.
+     */
+    connect(target) {
+      const heldNotes = /* @__PURE__ */ new Map();
+      const isInputActive = (event) => {
+        if (target.keyboard.closest("[hidden]") || document.querySelector("dialog[open]") || event.altKey || event.ctrlKey || event.metaKey) {
+          return false;
+        }
+        const eventTarget = event.target;
+        if (eventTarget instanceof HTMLElement && (eventTarget.isContentEditable || eventTarget.closest("input, textarea, select, [contenteditable='true']"))) {
+          return false;
+        }
+        return true;
+      };
+      const releaseHeldNotes = () => {
+        for (const code of heldNotes.keys()) {
+          target.callbacks.onRelease(`computer:${code}`);
+        }
+        heldNotes.clear();
+      };
+      window.addEventListener(
+        "keydown",
+        (event) => {
+          if (heldNotes.has(event.code)) {
+            event.preventDefault();
+            return;
+          }
+          if (event.repeat || !isInputActive(event)) {
+            return;
+          }
+          if (event.code === "KeyX" || event.code === "KeyC") {
+            event.preventDefault();
+            this.shiftOctave(event.code === "KeyX" ? -1 : 1);
+            return;
+          }
+          const noteOffset = COMPUTER_KEYBOARD_NOTE_OFFSETS.get(
+            event.code
+          );
+          if (noteOffset === void 0) {
+            return;
+          }
+          event.preventDefault();
+          const midiNote = COMPUTER_KEYBOARD_BASE_MIDI_NOTE + noteOffset + this.octaveShift * OCTAVE_SEMITONES;
+          heldNotes.set(event.code, midiNote);
+          target.callbacks.onPress(midiNote, `computer:${event.code}`);
+        },
+        { signal: target.signal }
+      );
+      window.addEventListener(
+        "keyup",
+        (event) => {
+          if (!heldNotes.has(event.code)) {
+            return;
+          }
+          event.preventDefault();
+          heldNotes.delete(event.code);
+          target.callbacks.onRelease(`computer:${event.code}`);
+        },
+        { signal: target.signal }
+      );
+      window.addEventListener("blur", releaseHeldNotes, { signal: target.signal });
+      target.signal.addEventListener("abort", releaseHeldNotes, { once: true });
+    }
+    shiftOctave(direction) {
+      this.octaveShift = Math.max(
+        MIN_OCTAVE_SHIFT,
+        Math.min(MAX_OCTAVE_SHIFT, this.octaveShift + direction)
+      );
+    }
+  };
+
   // audio/sampleSource.ts
   var SampleSource = class {
     /**
@@ -948,9 +1171,6 @@
   };
 
   // controllers/appController.ts
-  function isChordSelection(value) {
-    return value === "single-note" || CHORDS.some((chord) => chord.id === value);
-  }
   var AppController = class {
     /**
      * Creates the app controller and wires keyboard, source, volume, and lifecycle controls.
@@ -958,16 +1178,31 @@
      * @param envelopeController Provides the active synthesis envelope.
      * @param metaAudioController Resolves bundled Meta instrument samples.
      * @param customAudioController Resolves user-provided custom samples.
+     * @param settingsStorage Loads and stores the application's persisted settings.
+     * @param initialSettings Previously saved application settings, when available.
      */
-    constructor(view, envelopeController2, metaAudioController, customAudioController) {
+    constructor(view, envelopeController2, metaAudioController, customAudioController, settingsStorage2, initialSettings = void 0) {
       this.activeVoices = /* @__PURE__ */ new Map();
       this.activeNoteCounts = /* @__PURE__ */ new Map();
+      this.keyboardInputs = [
+        new MouseKeyboardInput(),
+        new ComputerKeyboardInput()
+      ];
       this.selectedSource = "sine";
       this.selectedChordId = "single-note";
       this.view = view;
       this.envelopeController = envelopeController2;
       this.metaAudioController = metaAudioController;
       this.customAudioController = customAudioController;
+      this.settingsStorage = settingsStorage2;
+      this.settings = initialSettings ?? DEFAULT_APP_SETTINGS;
+      this.applySettings();
+      this.envelopeController.setChangeHandler((envelope) => {
+        if (envelope) {
+          this.settings = { ...this.settings, envelope };
+          this.settingsStorage.storeSettings(this.settings);
+        }
+      });
       this.audioWaveVisualization = new AudioWaveVisualization(this.view.audioWaveCanvas);
       this.playedKeysVisualization = new PlayedKeysVisualization(this.view.playedKeysCanvas);
       this.sineIntersectionVisualization = new SineIntersectionVisualization(
@@ -1010,21 +1245,32 @@
       this.view.volumeInput.addEventListener("input", (_event) => {
         this.view.volumeOutput.textContent = `${this.view.volumeInput.value}%`;
         setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
+        this.persistSettings();
       });
       setMasterVolume(this.view.volumeInput.valueAsNumber / 100);
       this.view.sourceSelect.addEventListener("change", (_event) => {
-        this.selectedSource = this.view.sourceSelect.value;
+        const source = this.view.sourceSelect.value;
+        if (!isAudioSource(source)) {
+          throw new Error(`Unsupported sound source: ${source}`);
+        }
+        this.selectedSource = source;
         this.updateSoundSourceUI();
+        this.persistSettings();
       });
       for (const button of this.view.metaAudioButtons) {
         button.addEventListener("click", (_event) => {
+          if (!isAudioSource(button.value)) {
+            throw new Error(`Unsupported sound source: ${button.value}`);
+          }
           this.selectedSource = button.value;
           this.updateSoundSourceUI();
+          this.persistSettings();
         });
       }
       this.view.customSourceButton.addEventListener("click", (_event) => {
         this.selectedSource = "custom";
         this.updateSoundSourceUI();
+        this.persistSettings();
       });
       this.view.loadCustomSamplesButton.addEventListener("click", (_event) => {
         this.loadCustomSamples();
@@ -1032,11 +1278,15 @@
       for (const visualization of this.visualizations) {
         visualization.checkbox.addEventListener("change", () => {
           this.updateVisualizations();
+          this.persistSettings();
         });
       }
       this.view.form.addEventListener("submit", (event) => {
         event.preventDefault();
-        this.renderSelectedKeyboard();
+        if (this.renderSelectedKeyboard()) {
+          this.persistSettings();
+          this.view.keyboardSettingsDialog.close();
+        }
       });
       this.view.chordDialog.addEventListener("close", () => {
         if (this.view.chordDialog.returnValue !== "apply") {
@@ -1044,7 +1294,7 @@
           return;
         }
         const selectedChordId = this.view.chordSelect.value;
-        if (!isChordSelection(selectedChordId)) {
+        if (!isKeyboardPlaybackSelection(selectedChordId)) {
           throw new Error(`Unsupported keyboard playback selection: ${selectedChordId}`);
         }
         const selectedOption = this.view.chordSelect.selectedOptions.item(0);
@@ -1053,26 +1303,64 @@
         }
         this.selectedChordId = selectedChordId;
         this.view.chordModeOutput.textContent = selectedOption.textContent;
-      });
-      window.addEventListener("pointerup", (event) => {
-        if (event.pointerType === "mouse") {
-          this.releaseAllVoices();
-        }
-      });
-      window.addEventListener("pointercancel", (event) => {
-        if (event.pointerType === "mouse") {
-          this.releaseAllVoices();
-        }
-      });
-      window.addEventListener("mouseup", (event) => {
-        if (event.button === 0) {
-          this.releaseAllVoices();
-        }
+        this.persistSettings();
       });
       window.addEventListener("blur", () => this.releaseAllVoices());
       this.renderSelectedKeyboard();
       this.updateSoundSourceUI();
       this.updateVisualizations();
+    }
+    applySettings() {
+      this.view.audioWaveCheckbox.checked = this.settings.visualizations.audioWave;
+      this.view.playedKeysCheckbox.checked = this.settings.visualizations.playedKeys;
+      this.view.sineIntersectionCheckbox.checked = this.settings.visualizations.sineIntersection;
+      this.view.staticIntersectionCheckbox.checked = this.settings.visualizations.staticIntersection;
+      this.view.keyCountInput.value = String(this.settings.keyboard.keyCount);
+      this.view.chordSelect.value = this.settings.keyboard.playbackSelection;
+      this.selectedChordId = this.settings.keyboard.playbackSelection;
+      const selectedOption = this.view.chordSelect.selectedOptions.item(0);
+      if (!selectedOption) {
+        throw new Error("The saved keyboard playback option is missing.");
+      }
+      this.view.chordModeOutput.textContent = selectedOption.textContent;
+      this.view.volumeInput.value = String(this.settings.volume);
+      this.view.volumeOutput.textContent = `${this.settings.volume}%`;
+      this.view.customSampleUrlInput.value = this.settings.keyboard.customSampleDirectoryUrl;
+      const savedSource = this.settings.keyboard.audioSource;
+      this.selectedSource = savedSource === "custom" && this.settings.keyboard.customSampleDirectoryUrl.length === 0 ? "sine" : savedSource;
+      this.view.sourceSelect.value = this.selectedSource === "sine" || this.selectedSource === "square" || this.selectedSource === "sawtooth" ? this.selectedSource : "sine";
+      if (this.selectedSource === "custom") {
+        try {
+          this.customAudioController.setDirectoryUrl(
+            this.settings.keyboard.customSampleDirectoryUrl
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error("Unable to restore the saved custom sample directory.", error);
+          this.view.soundStatus.textContent = `Unable to restore sample directory: ${message}`;
+          this.selectedSource = "sine";
+        }
+      }
+    }
+    persistSettings() {
+      const keyCount = this.view.keyCountInput.valueAsNumber;
+      const keyboardSettings = Number.isInteger(keyCount) && keyCount >= 1 && keyCount <= 88 ? { ...this.settings.keyboard, keyCount } : this.settings.keyboard;
+      this.settings = {
+        ...this.settings,
+        visualizations: {
+          audioWave: this.view.audioWaveCheckbox.checked,
+          playedKeys: this.view.playedKeysCheckbox.checked,
+          sineIntersection: this.view.sineIntersectionCheckbox.checked,
+          staticIntersection: this.view.staticIntersectionCheckbox.checked
+        },
+        keyboard: {
+          ...keyboardSettings,
+          playbackSelection: this.selectedChordId,
+          audioSource: this.selectedSource
+        },
+        volume: this.view.volumeInput.valueAsNumber
+      };
+      this.settingsStorage.storeSettings(this.settings);
     }
     /**
      * Starts a waveform or sample voice for a MIDI note.
@@ -1180,29 +1468,30 @@
     /**
      * Validates the selected key count and connects keyboard input to playback.
      * The keyboard's callbacks play and release the selected single note or chord.
+     * @returns Whether the keyboard was successfully rendered.
      */
     renderSelectedKeyboard() {
       const keyCount = this.view.keyCountInput.valueAsNumber;
       if (!Number.isInteger(keyCount) || keyCount < 1 || keyCount > 88) {
         this.view.keyCountInput.setCustomValidity("Enter a whole number from 1 to 88.");
         this.view.keyCountInput.reportValidity();
-        return;
+        return false;
       }
       this.view.keyCountInput.setCustomValidity("");
       renderKeyboard(this.view.keyboardContainer, keyCount, {
-        onPress: (midiNote) => {
+        onPress: (midiNote, inputId) => {
           const envelope = this.envelopeController.getEnvelope();
           if (!envelope) {
             return;
           }
-          this.activeVoices.get(midiNote)?.release();
+          this.activeVoices.get(inputId)?.release();
           const voice = this.playNotes(
             this.getSelectedChordNotes(midiNote),
             envelope
           );
-          this.activeVoices.set(midiNote, voice);
+          this.activeVoices.set(inputId, voice);
         },
-        onRelease: (midiNote) => this.releaseVoice(midiNote),
+        onRelease: (_midiNote, inputId) => this.releaseVoice(inputId),
         getPlayedNotes: (midiNote) => this.getSelectedChordNotes(midiNote),
         onHover: (midiNote, noteName) => {
           const frequency = this.midiToFrequency(midiNote);
@@ -1211,7 +1500,8 @@
         onLeave: () => {
           this.view.frequencyOutput.textContent = "Hover over a key to see its frequency.";
         }
-      });
+      }, 21, this.keyboardInputs);
+      return true;
     }
     getSelectedChordIntervals() {
       if (this.selectedChordId === "single-note") {
@@ -1307,7 +1597,15 @@
           this.view.customSampleUrlInput.value
         );
         this.view.customSampleUrlInput.setCustomValidity("");
+        this.settings = {
+          ...this.settings,
+          keyboard: {
+            ...this.settings.keyboard,
+            customSampleDirectoryUrl: directoryUrl
+          }
+        };
         this.view.soundStatus.textContent = `Custom sample directory ready: ${directoryUrl} Samples load when played.`;
+        this.persistSettings();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.view.customSampleUrlInput.setCustomValidity(message);
@@ -1315,9 +1613,9 @@
         this.view.soundStatus.textContent = `Unable to use sample directory: ${message}`;
       }
     }
-    releaseVoice(midiNote) {
-      this.activeVoices.get(midiNote)?.release();
-      this.activeVoices.delete(midiNote);
+    releaseVoice(inputId) {
+      this.activeVoices.get(inputId)?.release();
+      this.activeVoices.delete(inputId);
     }
     releaseAllVoices() {
       for (const voice of this.activeVoices.values()) {
@@ -1361,12 +1659,22 @@
      * @param initialEnvelope The default envelope settings.
      */
     constructor(view, initialEnvelope) {
+      this.changeHandler = () => {
+      };
       this.view = view;
       this.currentEnvelope = initialEnvelope;
       this.view.setChangeHandler((envelope) => {
         this.currentEnvelope = envelope;
+        this.changeHandler(envelope);
       });
       this.view.setEnvelope(initialEnvelope);
+    }
+    /**
+     * Registers a callback for valid and invalid envelope edits.
+     * @param handler Receives the current envelope, or undefined when it is invalid.
+     */
+    setChangeHandler(handler) {
+      this.changeHandler = handler;
     }
     /**
      * Reads the current controls and exposes the valid envelope.
@@ -1377,6 +1685,104 @@
       return this.currentEnvelope;
     }
   };
+
+  // effects/ConfettiEffect.ts
+  var CONFETTI_COLORS = [
+    "#f94144",
+    "#f3722c",
+    "#f9c74f",
+    "#43aa8b",
+    "#577590",
+    "#9b5de5"
+  ];
+  var CONFETTI_COUNT = 80;
+  var ConfettiEffect = class {
+    /** Shows a burst of animated confetti, then removes its temporary elements. */
+    trigger(_data) {
+      const container = document.createElement("div");
+      container.className = "confetti-effect";
+      container.setAttribute("aria-hidden", "true");
+      container.style.position = "fixed";
+      container.style.inset = "0";
+      container.style.overflow = "hidden";
+      container.style.pointerEvents = "none";
+      container.style.zIndex = "1100";
+      document.body.append(container);
+      let remainingPieces = CONFETTI_COUNT;
+      for (let index = 0; index < CONFETTI_COUNT; index += 1) {
+        const piece = document.createElement("span");
+        piece.style.position = "absolute";
+        piece.style.top = "12%";
+        piece.style.left = "50%";
+        piece.style.width = `${6 + Math.random() * 6}px`;
+        piece.style.height = `${10 + Math.random() * 10}px`;
+        piece.style.backgroundColor = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)] ?? "#f94144";
+        container.append(piece);
+        const horizontalDistance = (Math.random() - 0.5) * window.innerWidth;
+        const verticalDistance = window.innerHeight * (0.65 + Math.random() * 0.35);
+        const rotation = Math.random() * 900 - 450;
+        const animation = piece.animate(
+          [
+            { transform: "translate(0, 0) rotate(0deg)", opacity: 1 },
+            {
+              transform: `translate(${horizontalDistance}px, ${verticalDistance}px) rotate(${rotation}deg)`,
+              opacity: 0
+            }
+          ],
+          {
+            duration: 1600 + Math.random() * 1e3,
+            delay: Math.random() * 180,
+            easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+            fill: "forwards"
+          }
+        );
+        animation.onfinish = () => {
+          piece.remove();
+          remainingPieces -= 1;
+          if (remainingPieces === 0) {
+            container.remove();
+          }
+        };
+      }
+    }
+  };
+
+  // games/guessFeedback.ts
+  function evaluateGuess(guess, answer, mode) {
+    const noteIsCorrect = guess.map(
+      (note, index) => mode === "ordered" ? note === answer[index] : answer.includes(note)
+    );
+    return {
+      noteIsCorrect,
+      isCorrect: guess.length === answer.length && noteIsCorrect.every((isCorrect) => isCorrect)
+    };
+  }
+  function setGuessFeedback(button, isCorrect) {
+    button.classList.remove("guess-feedback--correct", "guess-feedback--incorrect");
+    button.classList.add(
+      isCorrect ? "guess-feedback--correct" : "guess-feedback--incorrect"
+    );
+  }
+  function ensureGuessFeedbackStyles() {
+    if (document.getElementById("guess-feedback-styles")) {
+      return;
+    }
+    const styles = document.createElement("style");
+    styles.id = "guess-feedback-styles";
+    styles.textContent = `
+    .guess-feedback-list button.guess-feedback--correct {
+      background: #e6f4ea;
+      border-color: #188038;
+      color: #137333;
+    }
+    .guess-feedback-list button.guess-feedback--incorrect {
+      background: #fce8e6;
+      border-color: #d93025;
+      color: #a50e0e;
+    }
+  `;
+    document.head.append(styles);
+  }
 
   // games/pitchIdentificationController.ts
   var FIRST_GAME_NOTE = 60;
@@ -1400,6 +1806,7 @@
      * @param playNote Starts an audio voice for a MIDI note and envelope.
      */
     constructor(view, kind, patterns, playNote) {
+      this.correctAnswerEffect = new ConfettiEffect();
       this.keyboardVoices = /* @__PURE__ */ new Map();
       this.targetNotes = [];
       this.guess = [];
@@ -1703,9 +2110,11 @@
       }
       let isCorrect;
       if (this.gameMode !== "identify-pattern") {
-        isCorrect = this.guess.length === this.targetNotes.length && (this.kind === "scales" ? this.guess.every(
-          (midiNote, index) => midiNote === this.targetNotes[index]
-        ) : this.guess.every((midiNote) => this.targetNotes.includes(midiNote)));
+        isCorrect = evaluateGuess(
+          this.guess,
+          this.targetNotes,
+          this.kind === "scales" ? "ordered" : "unordered"
+        ).isCorrect;
       } else {
         const selectedAnswer = this.view.answerOptions.querySelector('input[type="radio"]:checked');
         if (!selectedAnswer) {
@@ -1728,6 +2137,9 @@
       });
       this.updateAttemptsOutput();
       this.renderGuess();
+      if (isCorrect) {
+        this.correctAnswerEffect.trigger();
+      }
       if (gameFinished) {
         this.gameActive = false;
         this.view.replayButton.hidden = true;
@@ -1796,6 +2208,11 @@
     }
     renderGuess() {
       this.view.playGuessButton.disabled = this.guess.length === 0 || this.submitted || !this.gameActive;
+      const feedback = this.submitted && this.gameMode !== "identify-pattern" ? evaluateGuess(
+        this.guess,
+        this.targetNotes,
+        this.kind === "scales" ? "ordered" : "unordered"
+      ) : void 0;
       const items = this.guess.map(
         (midiNote, index) => {
           const item = document.createElement("li");
@@ -1805,6 +2222,9 @@
           removeButton.textContent = midiNoteName(midiNote);
           removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
           removeButton.disabled = this.submitted;
+          if (feedback) {
+            setGuessFeedback(removeButton, feedback.noteIsCorrect[index] === true);
+          }
           removeButton.addEventListener("click", () => {
             if (this.submitted) {
               return;
@@ -1932,6 +2352,7 @@
 
   // games/pitchIdentificationView.ts
   function createPitchIdentificationView(kind, title, instructions, patterns) {
+    ensureGuessFeedbackStyles();
     const styles = document.createElement("style");
     styles.textContent = `
     .pitch-game-settings {
@@ -2016,6 +2437,9 @@
     .pitch-game-finish {
       background: #e6f4ea;
       border: 1px solid #a8dab5;
+    }
+    .pitch-game-actions button.pitch-game-finish {
+      color: #2f6d43;
     }
     .pitch-game-guess {
       display: flex;
@@ -2187,7 +2611,7 @@
     const guessHeading = document.createElement("h2");
     guessHeading.textContent = kind === "chords" ? "Your notes" : "Your answer";
     const guessList = document.createElement("ol");
-    guessList.className = "pitch-game-guess";
+    guessList.className = "pitch-game-guess guess-feedback-list";
     const status = document.createElement("output");
     status.className = "pitch-game-status";
     status.setAttribute("aria-live", "polite");
@@ -2315,11 +2739,11 @@
      * @param playNote Starts an audio voice for a MIDI note and envelope.
      */
     constructor(view, playNote) {
+      this.correctAnswerEffect = new ConfettiEffect();
       this.keyboardVoices = /* @__PURE__ */ new Map();
       this.sequence = [];
       this.durations = [];
       this.guess = [];
-      this.correctPositions = [];
       this.submitted = false;
       this.gameActive = false;
       this.failedGuesses = 0;
@@ -2384,7 +2808,6 @@
       this.sequence = [];
       this.durations = [];
       this.guess = [];
-      this.correctPositions = [];
       this.submitted = false;
       this.failedGuesses = 0;
       this.hintsUsed = 0;
@@ -2452,7 +2875,6 @@
       this.failedGuesses = 0;
       this.gameActive = true;
       this.guess = [];
-      this.correctPositions = [];
       this.submitted = false;
       this.view.settingsToggleButton.hidden = false;
       this.view.setSettingsExpanded(false);
@@ -2569,10 +2991,11 @@
       }
       this.stopPlayback();
       this.submitted = true;
-      this.correctPositions = this.guess.map(
-        (midiNote, index) => midiNote === this.sequence[index]
-      );
-      const isCorrect = this.guess.length === this.sequence.length && this.correctPositions.every((isCorrect2) => isCorrect2);
+      const isCorrect = evaluateGuess(
+        this.guess,
+        this.sequence,
+        "ordered"
+      ).isCorrect;
       if (!isCorrect) {
         this.failedGuesses += 1;
       }
@@ -2591,6 +3014,7 @@
       this.updateAttemptsOutput();
       this.renderGuess();
       if (isCorrect) {
+        this.correctAnswerEffect.trigger();
         this.view.status.textContent = "Correct! You got the whole sequence.";
       } else if (gameFinished) {
         this.view.status.textContent = "No guesses left. Start a new game when ready.";
@@ -2615,7 +3039,6 @@
       this.gestureGuessIndex = void 0;
       this.submitted = false;
       this.guess = [];
-      this.correctPositions = [];
       this.view.finishButton.disabled = false;
       this.view.resetButton.disabled = false;
       this.setKeyboardDisabled(false);
@@ -2626,6 +3049,7 @@
     }
     renderGuess() {
       this.view.playMySequenceButton.disabled = this.guess.length === 0;
+      const feedback = this.submitted ? evaluateGuess(this.guess, this.sequence, "ordered") : void 0;
       const items = this.guess.map(
         (midiNote, index) => {
           const item = document.createElement("li");
@@ -2635,10 +3059,8 @@
           removeButton.textContent = `${index + 1}. ${midiNoteName(midiNote)}`;
           removeButton.setAttribute("aria-label", `Remove note ${index + 1}, ${midiNoteName(midiNote)}`);
           removeButton.disabled = this.submitted;
-          if (this.submitted) {
-            removeButton.classList.add(
-              this.correctPositions[index] ? "note-sequence-guess-note--correct" : "note-sequence-guess-note--incorrect"
-            );
+          if (feedback) {
+            setGuessFeedback(removeButton, feedback.noteIsCorrect[index] === true);
           }
           removeButton.addEventListener("click", (_event) => {
             if (this.submitted) {
@@ -2718,6 +3140,7 @@
     return icon;
   }
   function createNoteSequenceView() {
+    ensureGuessFeedbackStyles();
     const styles = document.createElement("style");
     styles.textContent = `
     .note-sequence-settings {
@@ -2778,7 +3201,9 @@
     .note-sequence-finish {
       background: #e6f4ea;
       border: 1px solid #a8dab5;
-      color: #137333;
+    }
+    .note-sequence-actions button.note-sequence-finish {
+      color: #2f6d43;
     }
     .note-sequence-finish:hover:not(:disabled) {
       background: #cde8d4;
@@ -2786,6 +3211,7 @@
     }
     .note-sequence-randomize {
       align-items: center;
+      align-self: center;
       display: flex;
       gap: 0.4rem;
     }
@@ -2806,16 +3232,6 @@
     }
     .note-sequence-guess button:disabled {
       cursor: default;
-    }
-    .note-sequence-guess-note--correct {
-      background: #e6f4ea;
-      border-color: #188038;
-      color: #137333;
-    }
-    .note-sequence-guess-note--incorrect {
-      background: #fce8e6;
-      border-color: #d93025;
-      color: #a50e0e;
     }
     .note-sequence-status {
       font-weight: 600;
@@ -2947,7 +3363,7 @@
     const guessHeading = document.createElement("h2");
     guessHeading.textContent = "Your sequence";
     const guessList = document.createElement("ol");
-    guessList.className = "note-sequence-guess";
+    guessList.className = "note-sequence-guess guess-feedback-list";
     const status = document.createElement("output");
     status.className = "note-sequence-status";
     status.setAttribute("aria-live", "polite");
@@ -3174,17 +3590,21 @@
     });
     return { button, dialog, select, modeOutput };
   }
-  function createAppHeader() {
+  function createAppHeader(gameNavigation) {
     const element = document.createElement("header");
     element.className = "app-header";
     const brand = createBrand();
     const volumeControl = createVolumeControl();
     const visualizationSettings = createVisualizationSettings();
-    element.append(brand, volumeControl.element, visualizationSettings.button);
+    const actions = document.createElement("div");
+    actions.className = "app-header-actions";
+    actions.append(gameNavigation.element, visualizationSettings.button);
+    element.append(brand, volumeControl.element, actions);
     return {
       element,
       volumeInput: volumeControl.input,
       volumeOutput: volumeControl.output,
+      gameNavigation,
       ...visualizationSettings
     };
   }
@@ -3343,7 +3763,64 @@
       chordSettings.modeOutput,
       updateButton
     );
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "btn btn-outline-secondary keyboard-settings-button";
+    settingsButton.setAttribute("aria-haspopup", "dialog");
+    settingsButton.setAttribute("aria-controls", "keyboard-settings-dialog");
+    const settingsIcon = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg"
+    );
+    settingsIcon.classList.add("keyboard-settings-icon");
+    settingsIcon.setAttribute("viewBox", "0 0 24 24");
+    settingsIcon.setAttribute("aria-hidden", "true");
+    const gearPath = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path"
+    );
+    gearPath.setAttribute(
+      "d",
+      "M10 2h4l.6 3.1a8 8 0 0 1 1.7 1l2.9-1.1 2 3.5-2.3 2.1a8 8 0 0 1 0 2l2.3 2.1-2 3.5-2.9-1.1a8 8 0 0 1-1.7 1L14 22h-4l-.6-3.1a8 8 0 0 1-1.7-1l-2.9 1.1-2-3.5 2.3-2.1a8 8 0 0 1 0-2L4.8 9.3l2-3.5 2.9 1.1a8 8 0 0 1 1.7-1L10 2z"
+    );
+    gearPath.setAttribute("fill", "none");
+    gearPath.setAttribute("stroke", "currentColor");
+    gearPath.setAttribute("stroke-width", "1.6");
+    gearPath.setAttribute("stroke-linejoin", "round");
+    const gearCenter = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "circle"
+    );
+    gearCenter.setAttribute("cx", "12");
+    gearCenter.setAttribute("cy", "12");
+    gearCenter.setAttribute("r", "2.5");
+    gearCenter.setAttribute("fill", "none");
+    gearCenter.setAttribute("stroke", "currentColor");
+    gearCenter.setAttribute("stroke-width", "1.6");
+    settingsIcon.append(gearPath, gearCenter);
+    settingsButton.append(settingsIcon, document.createTextNode("Keyboard settings"));
+    const settingsDialog = document.createElement("dialog");
+    settingsDialog.id = "keyboard-settings-dialog";
+    settingsDialog.className = "keyboard-settings-dialog";
+    settingsDialog.setAttribute("aria-labelledby", "keyboard-settings-title");
+    const title = document.createElement("h2");
+    title.id = "keyboard-settings-title";
+    title.textContent = "Keyboard settings";
+    const closeForm = document.createElement("form");
+    closeForm.method = "dialog";
+    const actions = document.createElement("div");
+    actions.className = "visualization-settings-actions";
+    const doneButton = document.createElement("button");
+    doneButton.type = "submit";
+    doneButton.className = "btn btn-primary";
+    doneButton.textContent = "Done";
+    actions.append(doneButton);
+    closeForm.append(actions);
+    settingsDialog.append(title, form, closeForm, chordSettings.dialog);
+    settingsButton.addEventListener("click", () => settingsDialog.showModal());
     return {
+      settingsButton,
+      settingsDialog,
       form,
       keyCountInput: keyCountControl.input,
       sourceSelect: audioSourceControls.sourceSelect,
@@ -3359,7 +3836,7 @@
   }
   function createKeyboardStatus() {
     const instructions = document.createElement("p");
-    instructions.textContent = "Hold a key with the mouse to play it. Notes stop on release unless the release envelope is increased.";
+    instructions.textContent = "Hold a piano key with the mouse or use A, W, S, E, D, F, T, G, Y, H, U, J, K to play C3 through C4. Press X/C to lower/raise the octave. Notes stop on release unless the release envelope is increased.";
     const frequencyOutput = document.createElement("output");
     frequencyOutput.textContent = "Hover over a key to see its frequency.";
     frequencyOutput.setAttribute("aria-live", "polite");
@@ -3369,7 +3846,7 @@
     soundStatus.textContent = "Choose a waveform or sample source.";
     return { instructions, frequencyOutput, soundStatus };
   }
-  function createKeyboardScreen(envelopeView2, gameNavigation) {
+  function createKeyboardScreen(envelopeView2) {
     const element = document.createElement("section");
     element.className = "app-card";
     const heading = document.createElement("h1");
@@ -3377,16 +3854,17 @@
     const controls = createKeyboardControls();
     const status = createKeyboardStatus();
     const keyboardContainer = document.createElement("div");
+    const toolbar = document.createElement("div");
+    toolbar.className = "keyboard-toolbar";
+    toolbar.append(controls.settingsButton, envelopeView2.element);
     element.append(
-      gameNavigation.element,
       heading,
-      controls.form,
-      envelopeView2.element,
+      toolbar,
       status.instructions,
       status.soundStatus,
       status.frequencyOutput,
       keyboardContainer,
-      controls.chordDialog
+      controls.settingsDialog
     );
     return {
       element,
@@ -3503,6 +3981,13 @@
       justify-content: space-between;
       margin-bottom: 1.5rem;
     }
+    .app-header-actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      justify-content: flex-end;
+    }
     .app-brand {
       display: grid;
       gap: 0.1rem;
@@ -3543,7 +4028,9 @@
       min-width: 2.5rem;
     }
     .visualization-settings-dialog,
-    .chord-settings-dialog {
+    .chord-settings-dialog,
+    .keyboard-settings-dialog,
+    .envelope-editor-dialog {
       border: 0;
       border-radius: 1rem;
       box-shadow: 0 18px 48px #29316a33;
@@ -3553,11 +4040,15 @@
       width: 26rem;
     }
     .visualization-settings-dialog::backdrop,
-    .chord-settings-dialog::backdrop {
+    .chord-settings-dialog::backdrop,
+    .keyboard-settings-dialog::backdrop,
+    .envelope-editor-dialog::backdrop {
       background: #20233a66;
     }
     .visualization-settings-dialog h2,
-    .chord-settings-dialog h2 {
+    .chord-settings-dialog h2,
+    .keyboard-settings-dialog h2,
+    .envelope-editor-dialog h2 {
       font-size: 1.25rem;
       margin: 0 0 1.25rem;
     }
@@ -3578,6 +4069,27 @@
     }
     .chord-settings-dialog {
       width: 24rem;
+    }
+    .keyboard-settings-dialog {
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      width: min(52rem, calc(100vw - 2rem));
+    }
+    .keyboard-settings-dialog .app-controls {
+      border: 0;
+      margin: 0;
+      padding: 0;
+    }
+    .keyboard-settings-dialog .app-controls > .btn-primary {
+      align-self: end;
+    }
+    .envelope-editor-dialog {
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      width: min(48rem, calc(100vw - 2rem));
+    }
+    .envelope-editor-dialog form {
+      margin: 0;
     }
     .app-visualizations {
       display: grid;
@@ -3626,12 +4138,9 @@
       padding: clamp(1.25rem, 3vw, 2.25rem);
     }
     .game-navigation {
-      border-bottom: 1px solid #ececf3;
       display: flex;
       flex-wrap: wrap;
       gap: 0.55rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1.25rem;
     }
     .game-navigation button {
       border-radius: 999px;
@@ -3670,6 +4179,24 @@
     }
     .app-controls input[type="number"] {
       width: 7rem;
+    }
+    .keyboard-toolbar {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .keyboard-settings-button {
+      align-items: center;
+      display: inline-flex;
+      gap: 0.5rem;
+    }
+    .keyboard-settings-icon {
+      display: block;
+      flex: none;
+      height: 1.1rem;
+      width: 1.1rem;
     }
     button:not(.piano-key) {
       border-radius: 0.65rem;
@@ -3854,22 +4381,23 @@
   `;
     document.head.append(styles);
     const app = createAppRoot();
-    const header = createAppHeader();
     const gameNavigation = createGameNavigation();
-    const keyboardScreen = createKeyboardScreen(envelopeView2, gameNavigation);
+    const header = createAppHeader(gameNavigation);
+    const keyboardScreen = createKeyboardScreen(envelopeView2);
     const visualizations = createVisualizations();
     app.append(header.element, keyboardScreen.element, visualizations.element, header.dialog);
     document.body.replaceChildren(app);
     return {
       element: app,
       keyboardScreen: keyboardScreen.element,
-      gameButton: gameNavigation.gameButton,
-      chordGameButton: gameNavigation.chordGameButton,
-      scaleGameButton: gameNavigation.scaleGameButton,
+      gameButton: header.gameNavigation.gameButton,
+      chordGameButton: header.gameNavigation.chordGameButton,
+      scaleGameButton: header.gameNavigation.scaleGameButton,
       volumeInput: header.volumeInput,
       volumeOutput: header.volumeOutput,
       visualizationSettingsButton: header.button,
       visualizationDialog: header.dialog,
+      keyboardSettingsDialog: keyboardScreen.settingsDialog,
       audioWaveCheckbox: header.audioWaveCheckbox,
       playedKeysCheckbox: header.playedKeysCheckbox,
       sineIntersectionCheckbox: header.sineIntersectionCheckbox,
@@ -3994,12 +4522,11 @@
     toggleButton.type = "button";
     toggleButton.className = "btn btn-outline-secondary";
     toggleButton.textContent = "Edit envelope";
-    toggleButton.setAttribute("aria-expanded", "false");
-    toggleButton.setAttribute("aria-controls", "envelope-controls");
+    toggleButton.setAttribute("aria-haspopup", "dialog");
+    toggleButton.setAttribute("aria-controls", "envelope-editor-dialog");
     const controls = document.createElement("fieldset");
     controls.className = "envelope-controls";
     controls.id = "envelope-controls";
-    controls.hidden = true;
     const legend = document.createElement("legend");
     legend.textContent = "ADSR envelope";
     const controlGrid = document.createElement("div");
@@ -4108,7 +4635,25 @@
     caption.textContent = "Preview includes a 1-second sustain hold; during playback, sustain lasts while the mouse is held.";
     figure.append(chart, caption);
     controls.append(figure);
-    element.append(toggleButton, controls);
+    const dialog = document.createElement("dialog");
+    dialog.id = "envelope-editor-dialog";
+    dialog.className = "envelope-editor-dialog";
+    dialog.setAttribute("aria-labelledby", "envelope-editor-title");
+    const title = document.createElement("h2");
+    title.id = "envelope-editor-title";
+    title.textContent = "ADSR envelope";
+    const form = document.createElement("form");
+    form.method = "dialog";
+    const actions = document.createElement("div");
+    actions.className = "visualization-settings-actions";
+    const doneButton = document.createElement("button");
+    doneButton.type = "submit";
+    doneButton.className = "btn btn-primary";
+    doneButton.textContent = "Done";
+    actions.append(doneButton);
+    form.append(controls, actions);
+    dialog.append(title, form);
+    element.append(toggleButton, dialog);
     let changeHandler = () => {
     };
     function readValues(reportValidity) {
@@ -4226,10 +4771,7 @@
       String(DEFAULT_ENVELOPE.release),
       "5"
     );
-    toggleButton.addEventListener("click", (_event) => {
-      controls.hidden = !controls.hidden;
-      toggleButton.setAttribute("aria-expanded", String(!controls.hidden));
-    });
+    toggleButton.addEventListener("click", () => dialog.showModal());
     updateChart();
     return {
       element,
@@ -4253,10 +4795,12 @@
   }
 
   // main.ts
+  var settingsStorage = new LocalStorageSettingsStorage();
+  var settings = settingsStorage.loadSettings();
   var envelopeView = createEnvelopeView();
   var envelopeController = new EnvelopeController(
     envelopeView,
-    DEFAULT_ENVELOPE
+    settings?.envelope ?? DEFAULT_ENVELOPE
   );
   var appView = createAppView(envelopeView);
   var noteSequenceView = createNoteSequenceView();
@@ -4278,7 +4822,9 @@
     appView,
     envelopeController,
     new MetaAudioController(),
-    new CustomAudioController()
+    new CustomAudioController(),
+    settingsStorage,
+    settings
   );
   var noteSequenceController = new NoteSequenceController(
     noteSequenceView,
