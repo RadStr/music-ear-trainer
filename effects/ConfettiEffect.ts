@@ -1,4 +1,4 @@
-import type { Effect } from "./Effect";
+import type { Effect, EffectData } from "./Effect";
 
 const CONFETTI_COLORS: readonly string[] = [
   "#f94144",
@@ -10,9 +10,9 @@ const CONFETTI_COLORS: readonly string[] = [
 ];
 const CONFETTI_COUNT: number = 80;
 
-export class ConfettiEffect implements Effect<void> {
+export class ConfettiEffect implements Effect {
   /** Shows a burst of animated confetti, then removes its temporary elements. */
-  trigger(_data?: void): void {
+  trigger(_data?: EffectData): void {
     const container: HTMLDivElement = document.createElement("div");
     container.className = "confetti-effect";
     container.setAttribute("aria-hidden", "true");
@@ -27,8 +27,8 @@ export class ConfettiEffect implements Effect<void> {
     for (let index: number = 0; index < CONFETTI_COUNT; index += 1) {
       const piece: HTMLSpanElement = document.createElement("span");
       piece.style.position = "absolute";
-      piece.style.top = "12%";
-      piece.style.left = "50%";
+      piece.style.bottom = "0";
+      piece.style.left = `${Math.random() * 100}%`;
       piece.style.width = `${6 + Math.random() * 6}px`;
       piece.style.height = `${10 + Math.random() * 10}px`;
       piece.style.backgroundColor =
@@ -36,7 +36,7 @@ export class ConfettiEffect implements Effect<void> {
       container.append(piece);
 
       const horizontalDistance: number = (Math.random() - 0.5) * window.innerWidth;
-      const verticalDistance: number = window.innerHeight * (0.65 + Math.random() * 0.35);
+      const verticalDistance: number = -window.innerHeight * (0.65 + Math.random() * 0.35);
       const rotation: number = Math.random() * 900 - 450;
       const animation: Animation = piece.animate(
         [

@@ -1712,14 +1712,14 @@
       for (let index = 0; index < CONFETTI_COUNT; index += 1) {
         const piece = document.createElement("span");
         piece.style.position = "absolute";
-        piece.style.top = "12%";
-        piece.style.left = "50%";
+        piece.style.bottom = "0";
+        piece.style.left = `${Math.random() * 100}%`;
         piece.style.width = `${6 + Math.random() * 6}px`;
         piece.style.height = `${10 + Math.random() * 10}px`;
         piece.style.backgroundColor = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)] ?? "#f94144";
         container.append(piece);
         const horizontalDistance = (Math.random() - 0.5) * window.innerWidth;
-        const verticalDistance = window.innerHeight * (0.65 + Math.random() * 0.35);
+        const verticalDistance = -window.innerHeight * (0.65 + Math.random() * 0.35);
         const rotation = Math.random() * 900 - 450;
         const animation = piece.animate(
           [
@@ -1740,6 +1740,71 @@
           piece.remove();
           remainingPieces -= 1;
           if (remainingPieces === 0) {
+            container.remove();
+          }
+        };
+      }
+    }
+  };
+
+  // effects/ExplodingTextEffect.ts
+  var FLOAT_DURATION_MILLISECONDS = 650;
+  var EXPLOSION_DURATION_MILLISECONDS = 1250;
+  var ExplodingTextEffect = class {
+    /** Floats the supplied text briefly before scattering and fading its characters. */
+    trigger(data) {
+      if (typeof data !== "string" || data.length === 0) {
+        throw new TypeError("Exploding text effect requires non-empty text.");
+      }
+      const characters = Array.from(data);
+      const container = document.createElement("div");
+      container.className = "exploding-text-effect";
+      container.setAttribute("aria-hidden", "true");
+      container.style.position = "fixed";
+      container.style.top = "50%";
+      container.style.left = "50%";
+      container.style.display = "flex";
+      container.style.transform = "translate(-50%, -50%)";
+      container.style.whiteSpace = "pre";
+      container.style.fontSize = "clamp(2rem, 8vw, 5rem)";
+      container.style.fontWeight = "700";
+      container.style.color = "#f9c74f";
+      container.style.textShadow = "0 2px 12px rgba(0, 0, 0, 0.35)";
+      container.style.pointerEvents = "none";
+      container.style.zIndex = "1101";
+      document.body.append(container);
+      let remainingCharacters = characters.length;
+      for (const character of characters) {
+        const letter = document.createElement("span");
+        letter.textContent = character;
+        letter.style.display = "inline-block";
+        container.append(letter);
+        const horizontalDistance = (Math.random() - 0.5) * window.innerWidth;
+        const verticalDistance = (Math.random() - 0.5) * window.innerHeight;
+        const rotation = Math.random() * 720 - 360;
+        const animation = letter.animate(
+          [
+            { transform: "translate(0, 0) rotate(0deg)", opacity: 1, offset: 0 },
+            {
+              transform: "translate(0, -18px) rotate(0deg)",
+              opacity: 1,
+              offset: FLOAT_DURATION_MILLISECONDS / (FLOAT_DURATION_MILLISECONDS + EXPLOSION_DURATION_MILLISECONDS)
+            },
+            {
+              transform: `translate(${horizontalDistance}px, ${verticalDistance}px) rotate(${rotation}deg)`,
+              opacity: 0,
+              offset: 1
+            }
+          ],
+          {
+            duration: FLOAT_DURATION_MILLISECONDS + EXPLOSION_DURATION_MILLISECONDS,
+            easing: "ease-out",
+            fill: "forwards"
+          }
+        );
+        animation.onfinish = () => {
+          remainingCharacters -= 1;
+          if (remainingCharacters === 0) {
             container.remove();
           }
         };
@@ -1806,7 +1871,10 @@
      * @param playNote Starts an audio voice for a MIDI note and envelope.
      */
     constructor(view, kind, patterns, playNote) {
-      this.correctAnswerEffect = new ConfettiEffect();
+      this.winEffects = [
+        new ConfettiEffect(),
+        new ExplodingTextEffect()
+      ];
       this.keyboardVoices = /* @__PURE__ */ new Map();
       this.targetNotes = [];
       this.guess = [];
@@ -2138,7 +2206,9 @@
       this.updateAttemptsOutput();
       this.renderGuess();
       if (isCorrect) {
-        this.correctAnswerEffect.trigger();
+        for (const effect of this.winEffects) {
+          effect.trigger("Correct!");
+        }
       }
       if (gameFinished) {
         this.gameActive = false;
@@ -2739,7 +2809,10 @@
      * @param playNote Starts an audio voice for a MIDI note and envelope.
      */
     constructor(view, playNote) {
-      this.correctAnswerEffect = new ConfettiEffect();
+      this.winEffects = [
+        new ConfettiEffect(),
+        new ExplodingTextEffect()
+      ];
       this.keyboardVoices = /* @__PURE__ */ new Map();
       this.sequence = [];
       this.durations = [];
@@ -3014,7 +3087,9 @@
       this.updateAttemptsOutput();
       this.renderGuess();
       if (isCorrect) {
-        this.correctAnswerEffect.trigger();
+        for (const effect of this.winEffects) {
+          effect.trigger("Correct!");
+        }
         this.view.status.textContent = "Correct! You got the whole sequence.";
       } else if (gameFinished) {
         this.view.status.textContent = "No guesses left. Start a new game when ready.";

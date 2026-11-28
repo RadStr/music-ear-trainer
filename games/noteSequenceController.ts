@@ -1,5 +1,6 @@
 import type { Envelope, PlayingAudio } from "../audio/types";
 import { ConfettiEffect } from "../effects/ConfettiEffect";
+import { ExplodingTextEffect } from "../effects/ExplodingTextEffect";
 import type { Effect } from "../effects/Effect";
 import { midiNoteName, renderKeyboard } from "../keyboard";
 import { evaluateGuess, setGuessFeedback } from "./guessFeedback";
@@ -21,7 +22,10 @@ const GAME_ENVELOPE: Envelope = {
 export class NoteSequenceController {
   private readonly view: NoteSequenceView;
   private readonly playNote: (midiNote: number, envelope: Envelope) => PlayingAudio;
-  private readonly correctAnswerEffect: Effect<void> = new ConfettiEffect();
+  private readonly winEffects: readonly Effect[] = [
+    new ConfettiEffect(),
+    new ExplodingTextEffect(),
+  ];
   private readonly keyboardVoices: Map<number, PlayingAudio> = new Map<number, PlayingAudio>();
   private sequence: number[] = [];
   private durations: number[] = [];
@@ -342,7 +346,9 @@ export class NoteSequenceController {
     this.updateAttemptsOutput();
     this.renderGuess();
     if (isCorrect) {
-      this.correctAnswerEffect.trigger();
+      for (const effect of this.winEffects) {
+        effect.trigger("Correct!");
+      }
       this.view.status.textContent = "Correct! You got the whole sequence.";
     } else if (gameFinished) {
       this.view.status.textContent = "No guesses left. Start a new game when ready.";

@@ -440,7 +440,20 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       await correctSequenceGuess.evaluate((button) => getComputedStyle(button).backgroundColor),
       "rgb(230, 244, 234)",
     );
-    assert.equal(await page.locator(".confetti-effect").count(), 1);
+    const confettiEffect = page.locator(".confetti-effect");
+    assert.equal(await confettiEffect.count(), 1);
+    const firstConfettiPiece = confettiEffect.locator("span").first();
+    assert.equal(
+      await firstConfettiPiece.evaluate((piece) => getComputedStyle(piece).bottom),
+      "0px",
+    );
+    assert.match(
+      await firstConfettiPiece.evaluate(
+        (piece) => piece.getAnimations()[0].effect.getKeyframes().at(-1).transform,
+      ),
+      /translate\([^,]+px, -/,
+    );
+    assert.equal(await page.locator(".exploding-text-effect").textContent(), "Correct!");
 
     await page.getByRole("button", { name: "Back to keyboard" }).click();
     await page.getByRole("button", { name: "Chord and notes game" }).click();

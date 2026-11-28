@@ -9,3 +9,6 @@ Center the random note length to the vertical middle
 Put the keyboard settings and edit envelope into a single line and imrpove the cog in keyboard settings
 28-11-26:01-23-11
 Create effects directory. Create interface Effect in a file with the same name. and create implementation of it. Named ConfettiEffect. It will simply show confetti. This effect will be triggered when user guesses correctly. Create another Effect named Exploding text. It will take a text, slowly make it float a bit up and then it explodes and throws the letters across the screen. The interface of effect probably gets some data (which do not necessarily have to be text string but maybe something more advanced, so the type should be string | object or something like that)
+
+28-11-26:01-35-01 The win should be combination of confetti and exploding text - so it should be an array of effects that are triggered
+Also the confetti should go from bottom to up.

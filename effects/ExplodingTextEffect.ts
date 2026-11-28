@@ -1,16 +1,16 @@
-import type { Effect } from "./Effect";
+import type { Effect, EffectData } from "./Effect";
 
 const FLOAT_DURATION_MILLISECONDS: number = 650;
 const EXPLOSION_DURATION_MILLISECONDS: number = 1250;
 
-export class ExplodingTextEffect implements Effect<string> {
+export class ExplodingTextEffect implements Effect {
   /** Floats the supplied text briefly before scattering and fading its characters. */
-  trigger(text?: string): void {
-    if (text === undefined || text.length === 0) {
+  trigger(data?: EffectData): void {
+    if (typeof data !== "string" || data.length === 0) {
       throw new TypeError("Exploding text effect requires non-empty text.");
     }
 
-    const characters: string[] = Array.from(text);
+    const characters: string[] = Array.from(data);
     const container: HTMLDivElement = document.createElement("div");
     container.className = "exploding-text-effect";
     container.setAttribute("aria-hidden", "true");
