@@ -1,4 +1,5 @@
 import { DEFAULT_ENVELOPE, type Envelope } from "../audio/types";
+import { closeOnBackdropClick } from "./dialog";
 
 interface EnvelopeControl {
   readonly numberInput: HTMLInputElement;
@@ -237,6 +238,7 @@ export function createEnvelopeView(): EnvelopeView {
   const dialog: HTMLDialogElement = document.createElement("dialog");
   dialog.id = "envelope-editor-dialog";
   dialog.className = "envelope-editor-dialog";
+  closeOnBackdropClick(dialog);
   dialog.setAttribute("aria-labelledby", "envelope-editor-title");
   const title: HTMLHeadingElement = document.createElement("h2");
   title.id = "envelope-editor-title";

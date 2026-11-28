@@ -20,6 +20,7 @@
 
 - Add a visible hover highlight to every button.
 - Use an existing or consistent focus and hover style rather than introducing isolated styles.
+- Close modal dialogs when the user clicks outside the dialog content.
 - Every game that accepts guessed keys must show submitted correct keys in green and incorrect keys in red.
 - Keep game-specific controls, status text, keyboard UI, and hints hidden until a game is started or selected.
 - On the initial game-selection screen, do not show controls or information belonging to a previously active or completed game.

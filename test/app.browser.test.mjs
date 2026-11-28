@@ -112,7 +112,9 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       await keyboardSettingsDialog.getByRole("button", { name: "Play chords" }).isVisible(),
       true,
     );
-    await keyboardSettingsDialog.getByRole("button", { name: "Done" }).click();
+    await keyboardSettingsDialog.getByRole("heading", { name: "Keyboard settings" }).click();
+    assert.equal(await keyboardSettingsDialog.isVisible(), true);
+    await page.mouse.click(0, 0);
     assert.equal(await keyboardSettingsDialog.isVisible(), false);
 
     const envelopeDialog = page.getByRole("dialog", { name: "ADSR envelope" });
@@ -120,9 +122,17 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await page.getByRole("button", { name: "Edit envelope" }).click();
     assert.equal(await envelopeDialog.isVisible(), true);
     assert.equal(await envelopeDialog.locator("#envelope-controls").isVisible(), true);
-    await envelopeDialog.getByRole("button", { name: "Done" }).click();
+    await envelopeDialog.getByRole("heading", { name: "ADSR envelope" }).click();
+    assert.equal(await envelopeDialog.isVisible(), true);
+    await page.mouse.click(0, 0);
     assert.equal(await envelopeDialog.isVisible(), false);
 
+    await settingsButton.click();
+    assert.equal(await settingsDialog.isVisible(), true);
+    await settingsDialog.getByRole("heading", { name: "Visualization settings" }).click();
+    assert.equal(await settingsDialog.isVisible(), true);
+    await page.mouse.click(0, 0);
+    assert.equal(await settingsDialog.isVisible(), false);
     await settingsButton.click();
     assert.equal(await settingsDialog.isVisible(), true);
     const audioWaveCheckbox = settingsDialog.getByRole("checkbox", { name: "Audio wave" });
@@ -311,6 +321,12 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const chordButton = page.getByRole("button", { name: "Play chords" });
     const chordDialog = page.getByRole("dialog", { name: "Keyboard playback" });
     await keyboardSettingsButton.click();
+    await chordButton.click();
+    assert.equal(await chordDialog.isVisible(), true);
+    await chordDialog.getByRole("heading", { name: "Keyboard playback" }).click();
+    assert.equal(await chordDialog.isVisible(), true);
+    await page.mouse.click(0, 0);
+    assert.equal(await chordDialog.isVisible(), false);
     await chordButton.click();
     assert.equal(await chordDialog.isVisible(), true);
     const chordSelect = chordDialog.getByRole("combobox", { name: "Play" });

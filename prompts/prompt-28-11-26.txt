@@ -12,3 +12,5 @@ Create effects directory. Create interface Effect in a file with the same name. 
 
 28-11-26:01-35-01 The win should be combination of confetti and exploding text - so it should be an array of effects that are triggered
 Also the confetti should go from bottom to up.
+
+28-11-26:01-42-28 For the dialogs clicking outside of them should close them. Fix it and also put it into agents.md.

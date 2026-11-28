@@ -1,4 +1,5 @@
 import { CHORDS } from "../games/pitchGameData";
+import { closeOnBackdropClick } from "./dialog";
 import type { EnvelopeView } from "./envelopeView";
 
 export interface AppView {
@@ -196,6 +197,7 @@ function createVisualizationSettings(): VisualizationSettingsView {
 
   const dialog: HTMLDialogElement = document.createElement("dialog");
   dialog.className = "visualization-settings-dialog";
+  closeOnBackdropClick(dialog);
   dialog.setAttribute("aria-labelledby", "visualization-settings-title");
   const title: HTMLHeadingElement = document.createElement("h2");
   title.id = "visualization-settings-title";
@@ -286,6 +288,7 @@ function createChordSettings(): ChordSettingsView {
   const dialog: HTMLDialogElement = document.createElement("dialog");
   dialog.id = "chord-settings-dialog";
   dialog.className = "chord-settings-dialog";
+  closeOnBackdropClick(dialog);
   dialog.setAttribute("aria-labelledby", "chord-settings-title");
   button.setAttribute("aria-controls", dialog.id);
 
@@ -564,6 +567,7 @@ function createKeyboardControls(): KeyboardControlsView {
   const settingsDialog: HTMLDialogElement = document.createElement("dialog");
   settingsDialog.id = "keyboard-settings-dialog";
   settingsDialog.className = "keyboard-settings-dialog";
+  closeOnBackdropClick(settingsDialog);
   settingsDialog.setAttribute("aria-labelledby", "keyboard-settings-title");
   const title: HTMLHeadingElement = document.createElement("h2");
   title.id = "keyboard-settings-title";
