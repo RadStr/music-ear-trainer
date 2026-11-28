@@ -19,7 +19,7 @@ import {
   type Locale,
 } from "./language-settings";
 
-const SETTINGS_VERSION: 2 = 2;
+const SETTINGS_VERSION: 1 = 1;
 
 export interface AppSettings {
   readonly version: typeof SETTINGS_VERSION;
@@ -50,53 +50,12 @@ export function isAppSettings(value: unknown): value is AppSettings {
     value === null ||
     !("version" in value) ||
     !("locale" in value) ||
-    value.version !== SETTINGS_VERSION ||
-    !isLocale(value.locale)
-  ) {
-    return false;
-  }
-  return isAppSettingsData(value);
-}
-
-/**
- * Upgrades version-one settings while retaining their existing user preferences.
- * @param value The saved settings object to migrate.
- * @param previousLocale The locale saved by the earlier standalone language selector.
- * @returns The upgraded settings, or undefined when the value is not a valid legacy record.
- */
-export function migrateLegacyAppSettings(
-  value: unknown,
-  previousLocale: unknown,
-): AppSettings | undefined {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("version" in value) ||
-    value.version !== 1 ||
-    !isAppSettingsData(value)
-  ) {
-    return undefined;
-  }
-  return {
-    version: SETTINGS_VERSION,
-    locale: isLocale(previousLocale) ? previousLocale : DEFAULT_LOCALE,
-    visualizations: value.visualizations,
-    envelope: value.envelope,
-    keyboard: value.keyboard,
-    volume: value.volume,
-  };
-}
-
-type AppSettingsData = Omit<AppSettings, "version" | "locale">;
-
-function isAppSettingsData(value: unknown): value is AppSettingsData {
-  if (
-    typeof value !== "object" ||
-    value === null ||
     !("visualizations" in value) ||
     !("envelope" in value) ||
     !("keyboard" in value) ||
-    !("volume" in value)
+    !("volume" in value) ||
+    value.version !== SETTINGS_VERSION ||
+    !isLocale(value.locale)
   ) {
     return false;
   }

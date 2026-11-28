@@ -612,6 +612,12 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       ),
       "cs",
     );
+    assert.equal(
+      await page.evaluate(
+        () => JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")).version,
+      ),
+      1,
+    );
     await page.getByRole("button", { name: "Hra: posloupnost tónů" }).click();
     await page.getByRole("heading", { name: "Posloupnost tónů" }).waitFor();
     await page.locator("#sequence-note-count").fill("1");
@@ -623,38 +629,14 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
       .filter({ hasText: "Chybné pokusy: 0 / 3" })
       .waitFor();
 
-    await page.evaluate(() => {
-      const settings = JSON.parse(
-        localStorage.getItem("radstr-learning-by-ear.settings"),
-      );
-      settings.version = 1;
-      delete settings.locale;
-      localStorage.setItem("radstr-learning-by-ear.settings", JSON.stringify(settings));
-      localStorage.setItem("radstr-learning-by-ear.locale", "cs");
-    });
     await page.reload();
     assert.equal(await page.locator("html").getAttribute("lang"), "cs");
-    const upgradedSettings = await page.evaluate(() =>
+    const savedSettings = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")),
     );
-    assert.equal(upgradedSettings.version, 2);
-    assert.equal(upgradedSettings.locale, "cs");
-    assert.equal(upgradedSettings.keyboard.keyCount, 36);
-    assert.equal(await page.evaluate(() =>
-      localStorage.getItem("radstr-learning-by-ear.locale"),
-    ), null);
-    await page.evaluate(() => {
-      localStorage.removeItem("radstr-learning-by-ear.settings");
-      localStorage.setItem("radstr-learning-by-ear.locale", "cs");
-    });
-    await page.reload();
-    assert.equal(await page.locator("html").getAttribute("lang"), "cs");
-    const migratedLocaleOnlySettings = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("radstr-learning-by-ear.settings")),
-    );
-    assert.equal(migratedLocaleOnlySettings.version, 2);
-    assert.equal(migratedLocaleOnlySettings.locale, "cs");
-    assert.equal(migratedLocaleOnlySettings.keyboard.keyCount, 88);
+    assert.equal(savedSettings.version, 1);
+    assert.equal(savedSettings.locale, "cs");
+    assert.equal(savedSettings.keyboard.keyCount, 36);
     assert.deepEqual(pageErrors, []);
   } finally {
     await browser?.close();

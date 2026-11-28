@@ -1,14 +1,7 @@
-import {
-  DEFAULT_APP_SETTINGS,
-  isAppSettings,
-  migrateLegacyAppSettings,
-  type AppSettings,
-} from "../settings/app-settings";
-import { isLocale } from "../settings/language-settings";
+import { isAppSettings, type AppSettings } from "../settings/app-settings";
 import type { SettingsStorage } from "./settings-storage";
 
 const STORAGE_KEY: string = "radstr-learning-by-ear.settings";
-const LEGACY_LOCALE_STORAGE_KEY: string = "radstr-learning-by-ear.locale";
 
 export class LocalStorageSettingsStorage implements SettingsStorage {
   /**
@@ -20,17 +13,6 @@ export class LocalStorageSettingsStorage implements SettingsStorage {
     const serializedSettings: string | null =
       window.localStorage.getItem(STORAGE_KEY);
     if (serializedSettings === null) {
-      const previousLocale: string | null =
-        window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
-      if (isLocale(previousLocale)) {
-        const migratedSettings: AppSettings = {
-          ...DEFAULT_APP_SETTINGS,
-          locale: previousLocale,
-        };
-        this.storeSettings(migratedSettings);
-        window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
-        return migratedSettings;
-      }
       return undefined;
     }
 
@@ -43,21 +25,11 @@ export class LocalStorageSettingsStorage implements SettingsStorage {
     }
 
     if (!isAppSettings(parsedSettings)) {
-      const migratedSettings: AppSettings | undefined = migrateLegacyAppSettings(
-        parsedSettings,
-        window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY),
-      );
-      if (migratedSettings) {
-        this.storeSettings(migratedSettings);
-        window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
-        return migratedSettings;
-      }
       console.error(
         "Saved settings have an unsupported or invalid format; defaults will be used.",
       );
       return undefined;
     }
-    window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
     return parsedSettings;
   }
 

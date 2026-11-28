@@ -29,3 +29,6 @@ Also the confetti should go from bottom to up.
 2) You should add button at top right that lets me change language
 3) Since the czech version is ai generated put into the combobox "CZ (AI)"
 4) Integrate the AI into the agents.md that is if a new translation is ai generated it should have AI suffix in the combobox that lets me choose language.
+
+28-11-26:13-05-27 in local-sotrage-settings storage and other files (probably at least appController seems to be doing that), remove the code that handles two different versions of settings. Nobody is using the application yet so it is not needed. Just keep the version with locale and storage key.
+And move the settings version back to 1.
