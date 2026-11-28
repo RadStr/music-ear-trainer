@@ -20,3 +20,5 @@ Also the confetti should go from bottom to up.
 28-11-26:01-50-13 What ist he point of update keyboard button in the settings? Now that I am at it, create a settings directory and put the setting files there
 
 28-11-26:01-53-43 Ok I see. Then the setting storage and localstorage should be two files in the previous directory that you probably just removed and the settings themselves should be files in the settings directory
+
+28-11-26:12-19-56 Remove dist directory from GitHub
