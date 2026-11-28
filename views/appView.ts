@@ -516,7 +516,7 @@ function createKeyboardControls(): KeyboardControlsView {
   const updateButton: HTMLButtonElement = document.createElement("button");
   updateButton.type = "submit";
   updateButton.className = "btn btn-primary";
-  updateButton.textContent = "Update keyboard";
+  updateButton.textContent = "Apply keyboard settings";
   form.append(
     keyCountControl.element,
     audioSourceControls.sourceLabel,

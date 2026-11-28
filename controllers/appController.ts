@@ -20,7 +20,7 @@ import {
   type AppSettings,
   type KeyboardPlaybackSelection,
   type SettingsStorage,
-} from "../model/settings-storage";
+} from "../settings/settings-storage";
 import { ComputerKeyboardInput } from "../musical-keyboard-input/computer-keyboard/computer-keyboard-input";
 import { MouseKeyboardInput } from "../musical-keyboard-input/mouse/mouse-keyboard-input";
 import type { KeyboardInput } from "../musical-keyboard-input/keyboard-input";

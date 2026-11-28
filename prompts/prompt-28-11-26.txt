@@ -16,3 +16,5 @@ Also the confetti should go from bottom to up.
 28-11-26:01-42-28 For the dialogs clicking outside of them should close them. Fix it and also put it into agents.md.
 
 28-11-26:01-46-09 Rename the [closeOnBackdropClick](views/dialog.ts#L5) to something like addEventListenerHandlingBackdropClick or something similiar like that
+
+28-11-26:01-50-13 What ist he point of update keyboard button in the settings? Now that I am at it, create a settings directory and put the setting files there

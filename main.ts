@@ -12,7 +12,7 @@ import { createNoteSequenceView } from "./games/noteSequenceView";
 import {
   LocalStorageSettingsStorage,
   type SettingsStorage,
-} from "./model/settings-storage";
+} from "./settings/settings-storage";
 import type { AppView } from "./views/appView";
 import { createAppView } from "./views/appView";
 import { createEnvelopeView, type EnvelopeView } from "./views/envelopeView";

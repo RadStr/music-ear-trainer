@@ -745,7 +745,7 @@
     }
   ];
 
-  // model/settings-storage.ts
+  // settings/settings-storage.ts
   var SETTINGS_VERSION = 1;
   var DEFAULT_APP_SETTINGS = {
     version: SETTINGS_VERSION,
@@ -3498,7 +3498,7 @@
   }
 
   // views/dialog.ts
-  function closeOnBackdropClick(dialog) {
+  function addBackdropClickListener(dialog) {
     dialog.addEventListener("click", (event) => {
       if (event.target !== dialog) {
         return;
@@ -3558,7 +3558,7 @@
     button.textContent = "Visualization settings";
     const dialog = document.createElement("dialog");
     dialog.className = "visualization-settings-dialog";
-    closeOnBackdropClick(dialog);
+    addBackdropClickListener(dialog);
     dialog.setAttribute("aria-labelledby", "visualization-settings-title");
     const title = document.createElement("h2");
     title.id = "visualization-settings-title";
@@ -3640,7 +3640,7 @@
     const dialog = document.createElement("dialog");
     dialog.id = "chord-settings-dialog";
     dialog.className = "chord-settings-dialog";
-    closeOnBackdropClick(dialog);
+    addBackdropClickListener(dialog);
     dialog.setAttribute("aria-labelledby", "chord-settings-title");
     button.setAttribute("aria-controls", dialog.id);
     const title = document.createElement("h2");
@@ -3843,7 +3843,7 @@
     const updateButton = document.createElement("button");
     updateButton.type = "submit";
     updateButton.className = "btn btn-primary";
-    updateButton.textContent = "Update keyboard";
+    updateButton.textContent = "Apply keyboard settings";
     form.append(
       keyCountControl.element,
       audioSourceControls.sourceLabel,
@@ -3893,7 +3893,7 @@
     const settingsDialog = document.createElement("dialog");
     settingsDialog.id = "keyboard-settings-dialog";
     settingsDialog.className = "keyboard-settings-dialog";
-    closeOnBackdropClick(settingsDialog);
+    addBackdropClickListener(settingsDialog);
     settingsDialog.setAttribute("aria-labelledby", "keyboard-settings-title");
     const title = document.createElement("h2");
     title.id = "keyboard-settings-title";
@@ -4730,7 +4730,7 @@
     const dialog = document.createElement("dialog");
     dialog.id = "envelope-editor-dialog";
     dialog.className = "envelope-editor-dialog";
-    closeOnBackdropClick(dialog);
+    addBackdropClickListener(dialog);
     dialog.setAttribute("aria-labelledby", "envelope-editor-title");
     const title = document.createElement("h2");
     title.id = "envelope-editor-title";
