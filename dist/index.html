@@ -745,80 +745,58 @@
     }
   ];
 
-  // settings/settings-storage.ts
-  var SETTINGS_VERSION = 1;
-  var DEFAULT_APP_SETTINGS = {
-    version: SETTINGS_VERSION,
-    visualizations: {
-      audioWave: true,
-      playedKeys: true,
-      sineIntersection: true,
-      staticIntersection: true
-    },
-    envelope: DEFAULT_ENVELOPE,
-    keyboard: {
-      keyCount: 88,
-      playbackSelection: "single-note",
-      audioSource: "sine",
-      customSampleDirectoryUrl: ""
-    },
-    volume: 70
-  };
-  var STORAGE_KEY = "radstr-learning-by-ear.settings";
-  function isRecord(value) {
-    return typeof value === "object" && value !== null;
+  // settings/envelope-settings.ts
+  var DEFAULT_ENVELOPE_SETTINGS = DEFAULT_ENVELOPE;
+  function isEnvelopeSettings(value) {
+    if (typeof value !== "object" || value === null) {
+      return false;
+    }
+    return "attack" in value && typeof value.attack === "number" && Number.isFinite(value.attack) && value.attack >= 0 && value.attack <= 5 && "decay" in value && typeof value.decay === "number" && Number.isFinite(value.decay) && value.decay >= 0 && value.decay <= 5 && "sustain" in value && typeof value.sustain === "number" && Number.isFinite(value.sustain) && value.sustain >= 0 && value.sustain <= 1 && "release" in value && typeof value.release === "number" && Number.isFinite(value.release) && value.release >= 0 && value.release <= 5;
   }
+
+  // settings/keyboard-settings.ts
+  var DEFAULT_KEYBOARD_SETTINGS = {
+    keyCount: 88,
+    playbackSelection: "single-note",
+    audioSource: "sine",
+    customSampleDirectoryUrl: ""
+  };
   function isAudioSource(value) {
     return value === "sine" || value === "square" || value === "sawtooth" || value === "meta-piano" || value === "meta-nylon-guitar" || value === "meta-steel-guitar" || value === "custom";
   }
   function isKeyboardPlaybackSelection(value) {
     return value === "single-note" || CHORDS.some((chord) => chord.id === value);
   }
-  function isEnvelope(value) {
-    return isRecord(value) && typeof value.attack === "number" && Number.isFinite(value.attack) && value.attack >= 0 && value.attack <= 5 && typeof value.decay === "number" && Number.isFinite(value.decay) && value.decay >= 0 && value.decay <= 5 && typeof value.sustain === "number" && Number.isFinite(value.sustain) && value.sustain >= 0 && value.sustain <= 1 && typeof value.release === "number" && Number.isFinite(value.release) && value.release >= 0 && value.release <= 5;
+  function isKeyboardSettings(value) {
+    return typeof value === "object" && value !== null && "keyCount" in value && typeof value.keyCount === "number" && Number.isInteger(value.keyCount) && value.keyCount >= 1 && value.keyCount <= 88 && "playbackSelection" in value && isKeyboardPlaybackSelection(value.playbackSelection) && "audioSource" in value && isAudioSource(value.audioSource) && "customSampleDirectoryUrl" in value && typeof value.customSampleDirectoryUrl === "string";
   }
+
+  // settings/visualization-settings.ts
+  var DEFAULT_VISUALIZATION_SETTINGS = {
+    audioWave: true,
+    playedKeys: true,
+    sineIntersection: true,
+    staticIntersection: true
+  };
+  function isVisualizationSettings(value) {
+    return typeof value === "object" && value !== null && "audioWave" in value && typeof value.audioWave === "boolean" && "playedKeys" in value && typeof value.playedKeys === "boolean" && "sineIntersection" in value && typeof value.sineIntersection === "boolean" && "staticIntersection" in value && typeof value.staticIntersection === "boolean";
+  }
+
+  // settings/app-settings.ts
+  var SETTINGS_VERSION = 1;
+  var DEFAULT_APP_SETTINGS = {
+    version: SETTINGS_VERSION,
+    visualizations: DEFAULT_VISUALIZATION_SETTINGS,
+    envelope: DEFAULT_ENVELOPE_SETTINGS,
+    keyboard: DEFAULT_KEYBOARD_SETTINGS,
+    volume: 70
+  };
   function isAppSettings(value) {
-    if (!isRecord(value) || value.version !== SETTINGS_VERSION) {
+    if (typeof value !== "object" || value === null || !("version" in value) || !("visualizations" in value) || !("envelope" in value) || !("keyboard" in value) || !("volume" in value) || value.version !== SETTINGS_VERSION) {
       return false;
     }
-    const visualizations = value.visualizations;
-    const keyboard = value.keyboard;
-    return isRecord(visualizations) && typeof visualizations.audioWave === "boolean" && typeof visualizations.playedKeys === "boolean" && typeof visualizations.sineIntersection === "boolean" && typeof visualizations.staticIntersection === "boolean" && isEnvelope(value.envelope) && isRecord(keyboard) && Number.isInteger(keyboard.keyCount) && typeof keyboard.keyCount === "number" && keyboard.keyCount >= 1 && keyboard.keyCount <= 88 && isKeyboardPlaybackSelection(keyboard.playbackSelection) && isAudioSource(keyboard.audioSource) && typeof keyboard.customSampleDirectoryUrl === "string" && typeof value.volume === "number" && Number.isInteger(value.volume) && value.volume >= 0 && value.volume <= 100;
+    return isVisualizationSettings(value.visualizations) && isEnvelopeSettings(value.envelope) && isKeyboardSettings(value.keyboard) && typeof value.volume === "number" && Number.isInteger(value.volume) && value.volume >= 0 && value.volume <= 100;
   }
-  var LocalStorageSettingsStorage = class {
-    /**
-     * Loads validated settings from browser storage, or returns undefined when none are saved.
-     * Invalid saved data is reported and ignored so the app can start with its defaults.
-     * @returns The saved application settings, if a valid record exists.
-     */
-    loadSettings() {
-      const serializedSettings = window.localStorage.getItem(STORAGE_KEY);
-      if (serializedSettings === null) {
-        return void 0;
-      }
-      let parsedSettings;
-      try {
-        parsedSettings = JSON.parse(serializedSettings);
-      } catch (error) {
-        console.error("Saved settings are not valid JSON; defaults will be used.", error);
-        return void 0;
-      }
-      if (!isAppSettings(parsedSettings)) {
-        console.error(
-          "Saved settings have an unsupported or invalid format; defaults will be used."
-        );
-        return void 0;
-      }
-      return parsedSettings;
-    }
-    /**
-     * Serializes the grouped application settings to browser storage.
-     * @param settings The complete settings record to save.
-     */
-    storeSettings(settings2) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings2));
-    }
-  };
 
   // musical-keyboard-input/computer-keyboard/key-mappings.ts
   var COMPUTER_KEYBOARD_NOTE_OFFSETS = /* @__PURE__ */ new Map([
@@ -3496,6 +3474,43 @@
       setSettingsExpanded
     };
   }
+
+  // model/local-storage-settings-storage.ts
+  var STORAGE_KEY = "radstr-learning-by-ear.settings";
+  var LocalStorageSettingsStorage = class {
+    /**
+     * Loads validated settings from browser storage, or returns undefined when none are saved.
+     * Invalid saved data is reported and ignored so the app can start with its defaults.
+     * @returns The saved application settings, if a valid record exists.
+     */
+    loadSettings() {
+      const serializedSettings = window.localStorage.getItem(STORAGE_KEY);
+      if (serializedSettings === null) {
+        return void 0;
+      }
+      let parsedSettings;
+      try {
+        parsedSettings = JSON.parse(serializedSettings);
+      } catch (error) {
+        console.error("Saved settings are not valid JSON; defaults will be used.", error);
+        return void 0;
+      }
+      if (!isAppSettings(parsedSettings)) {
+        console.error(
+          "Saved settings have an unsupported or invalid format; defaults will be used."
+        );
+        return void 0;
+      }
+      return parsedSettings;
+    }
+    /**
+     * Serializes the grouped application settings to browser storage.
+     * @param settings The complete settings record to save.
+     */
+    storeSettings(settings2) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings2));
+    }
+  };
 
   // views/dialog.ts
   function addBackdropClickListener(dialog) {

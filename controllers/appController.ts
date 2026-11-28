@@ -15,12 +15,14 @@ import { PlayedKeysVisualization } from "../audio-visualization/played-keys/play
 import { CHORDS, NOTE_PITCH_CLASSES } from "../games/pitchGameData";
 import {
   DEFAULT_APP_SETTINGS,
+  type AppSettings,
+} from "../settings/app-settings";
+import {
   isAudioSource,
   isKeyboardPlaybackSelection,
-  type AppSettings,
   type KeyboardPlaybackSelection,
-  type SettingsStorage,
-} from "../settings/settings-storage";
+} from "../settings/keyboard-settings";
+import type { SettingsStorage } from "../model/settings-storage";
 import { ComputerKeyboardInput } from "../musical-keyboard-input/computer-keyboard/computer-keyboard-input";
 import { MouseKeyboardInput } from "../musical-keyboard-input/mouse/mouse-keyboard-input";
 import type { KeyboardInput } from "../musical-keyboard-input/keyboard-input";

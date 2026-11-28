@@ -259,7 +259,9 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     );
 
     await page.locator("#key-count").blur();
-    await keyboardSettingsDialog.getByRole("button", { name: "Update keyboard" }).click();
+    await keyboardSettingsDialog
+      .getByRole("button", { name: "Apply keyboard settings" })
+      .click();
     assert.equal(await keyboardSettingsDialog.isVisible(), false);
     await page.keyboard.down("a");
     await c3Key.hover();
@@ -564,7 +566,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     await savedChordDialog.getByRole("button", { name: "Done" }).click();
     await page.locator("#key-count").fill("36");
     await page.locator("#app-volume").fill("55");
-    await page.getByRole("button", { name: "Update keyboard" }).click();
+    await page.getByRole("button", { name: "Apply keyboard settings" }).click();
 
     await page.reload();
     assert.equal(await page.locator("#audio-wave-panel").isVisible(), false);

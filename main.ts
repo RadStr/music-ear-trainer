@@ -9,10 +9,8 @@ import { CHORDS, SCALES } from "./games/pitchGameData";
 import { createPitchIdentificationView } from "./games/pitchIdentificationView";
 import { NoteSequenceController } from "./games/noteSequenceController";
 import { createNoteSequenceView } from "./games/noteSequenceView";
-import {
-  LocalStorageSettingsStorage,
-  type SettingsStorage,
-} from "./settings/settings-storage";
+import type { SettingsStorage } from "./model/settings-storage";
+import { LocalStorageSettingsStorage } from "./model/local-storage-settings-storage";
 import type { AppView } from "./views/appView";
 import { createAppView } from "./views/appView";
 import { createEnvelopeView, type EnvelopeView } from "./views/envelopeView";
