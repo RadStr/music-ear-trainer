@@ -118,7 +118,7 @@ export function createNoteSequenceView(): NoteSequenceView {
       border: 1px solid #a8dab5;
     }
     .note-sequence-actions button.note-sequence-finish {
-      color: #000;
+      color: #2f6d43;
     }
     .note-sequence-finish:hover:not(:disabled) {
       background: #cde8d4;
@@ -126,6 +126,7 @@ export function createNoteSequenceView(): NoteSequenceView {
     }
     .note-sequence-randomize {
       align-items: center;
+      align-self: center;
       display: flex;
       gap: 0.4rem;
     }

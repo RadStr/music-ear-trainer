@@ -134,7 +134,7 @@ export function createPitchIdentificationView(
       border: 1px solid #a8dab5;
     }
     .pitch-game-actions button.pitch-game-finish {
-      color: #000;
+      color: #2f6d43;
     }
     .pitch-game-guess {
       display: flex;

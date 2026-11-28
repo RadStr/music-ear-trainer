@@ -526,12 +526,39 @@ function createKeyboardControls(): KeyboardControlsView {
   );
   const settingsButton: HTMLButtonElement = document.createElement("button");
   settingsButton.type = "button";
-  settingsButton.className = "btn btn-outline-secondary";
+  settingsButton.className = "btn btn-outline-secondary keyboard-settings-button";
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", "keyboard-settings-dialog");
-  const settingsIcon: HTMLSpanElement = document.createElement("span");
+  const settingsIcon: SVGSVGElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg",
+  );
+  settingsIcon.classList.add("keyboard-settings-icon");
+  settingsIcon.setAttribute("viewBox", "0 0 24 24");
   settingsIcon.setAttribute("aria-hidden", "true");
-  settingsIcon.textContent = "⚙ ";
+  const gearPath: SVGPathElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path",
+  );
+  gearPath.setAttribute(
+    "d",
+    "M10 2h4l.6 3.1a8 8 0 0 1 1.7 1l2.9-1.1 2 3.5-2.3 2.1a8 8 0 0 1 0 2l2.3 2.1-2 3.5-2.9-1.1a8 8 0 0 1-1.7 1L14 22h-4l-.6-3.1a8 8 0 0 1-1.7-1l-2.9 1.1-2-3.5 2.3-2.1a8 8 0 0 1 0-2L4.8 9.3l2-3.5 2.9 1.1a8 8 0 0 1 1.7-1L10 2z",
+  );
+  gearPath.setAttribute("fill", "none");
+  gearPath.setAttribute("stroke", "currentColor");
+  gearPath.setAttribute("stroke-width", "1.6");
+  gearPath.setAttribute("stroke-linejoin", "round");
+  const gearCenter: SVGCircleElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "circle",
+  );
+  gearCenter.setAttribute("cx", "12");
+  gearCenter.setAttribute("cy", "12");
+  gearCenter.setAttribute("r", "2.5");
+  gearCenter.setAttribute("fill", "none");
+  gearCenter.setAttribute("stroke", "currentColor");
+  gearCenter.setAttribute("stroke-width", "1.6");
+  settingsIcon.append(gearPath, gearCenter);
   settingsButton.append(settingsIcon, document.createTextNode("Keyboard settings"));
 
   const settingsDialog: HTMLDialogElement = document.createElement("dialog");
@@ -600,10 +627,12 @@ function createKeyboardScreen(
   const controls: KeyboardControlsView = createKeyboardControls();
   const status: KeyboardStatusView = createKeyboardStatus();
   const keyboardContainer: HTMLDivElement = document.createElement("div");
+  const toolbar: HTMLDivElement = document.createElement("div");
+  toolbar.className = "keyboard-toolbar";
+  toolbar.append(controls.settingsButton, envelopeView.element);
   element.append(
     heading,
-    controls.settingsButton,
-    envelopeView.element,
+    toolbar,
     status.instructions,
     status.soundStatus,
     status.frequencyOutput,
@@ -939,6 +968,24 @@ export function createAppView(envelopeView: EnvelopeView): AppView {
     }
     .app-controls input[type="number"] {
       width: 7rem;
+    }
+    .keyboard-toolbar {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .keyboard-settings-button {
+      align-items: center;
+      display: inline-flex;
+      gap: 0.5rem;
+    }
+    .keyboard-settings-icon {
+      display: block;
+      flex: none;
+      height: 1.1rem;
+      width: 1.1rem;
     }
     button:not(.piano-key) {
       border-radius: 0.65rem;

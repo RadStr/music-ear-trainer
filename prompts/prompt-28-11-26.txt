@@ -3,3 +3,7 @@
 28-11-26:00-39-24 Make the store/load of settings class methods and make it implement general interface. We do this so we can possibly support another storages.
 
 Change the storage key to radstr-learning-by-ear.settings
+
+28-11-26:01-16-52 Make the finish guess button text less black.
+Center the random note length to the vertical middle
+Put the keyboard settings and edit envelope into a single line and imrpove the cog in keyboard settings

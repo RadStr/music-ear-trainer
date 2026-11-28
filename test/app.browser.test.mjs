@@ -83,12 +83,25 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     assert.equal(await page.locator("#sine-intersection-panel").isVisible(), true);
     assert.equal(await page.locator("#static-intersection-panel").isVisible(), true);
     assert.equal(await page.locator("#intersection-panel").count(), 0);
+    const keyboardToolbar = page.locator(".keyboard-toolbar");
+    const keyboardSettingsButton = page.getByRole("button", { name: "Keyboard settings" });
+    assert.equal(
+      await keyboardToolbar.evaluate((element) => getComputedStyle(element).display),
+      "flex",
+    );
+    assert.equal(
+      await keyboardSettingsButton.evaluate(
+        (button) => button.getBoundingClientRect().top ===
+          button.parentElement.querySelector(".envelope-editor").getBoundingClientRect().top,
+      ),
+      true,
+    );
+    assert.equal(await keyboardSettingsButton.locator("svg").count(), 1);
     assert.match(
       await page.locator("#static-intersection-explanation").textContent(),
       /Play one or more notes/,
     );
     assert.equal(await settingsDialog.isVisible(), false);
-    const keyboardSettingsButton = page.getByRole("button", { name: "Keyboard settings" });
     const keyboardSettingsDialog = page.getByRole("dialog", { name: "Keyboard settings" });
     assert.equal(await keyboardSettingsDialog.isVisible(), false);
     assert.equal(await page.locator("#key-count").isVisible(), false);
@@ -390,6 +403,12 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
 
     await page.getByRole("button", { name: "Note sequence game" }).click();
     await page.locator("#sequence-note-count").fill("1");
+    assert.equal(
+      await page.locator(".note-sequence-randomize").evaluate(
+        (label) => getComputedStyle(label).alignSelf,
+      ),
+      "center",
+    );
     await page.evaluate(() => {
       Math.random = () => 0;
     });
@@ -397,7 +416,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const sequenceFinishButton = page.getByRole("button", { name: "Finish guess" });
     assert.equal(
       await sequenceFinishButton.evaluate((button) => getComputedStyle(button).color),
-      "rgb(0, 0, 0)",
+      "rgb(47, 109, 67)",
     );
     const sequenceGame = page.locator(".note-sequence-view");
     await sequenceGame.getByRole("button", { name: "D4", exact: true }).click();
@@ -431,7 +450,7 @@ test("the built app plays C4 through C5 at the correct sine frequencies", async 
     const pitchFinishButton = page.getByRole("button", { name: "Finish guess" });
     assert.equal(
       await pitchFinishButton.evaluate((button) => getComputedStyle(button).color),
-      "rgb(0, 0, 0)",
+      "rgb(47, 109, 67)",
     );
     const pitchGame = page.locator(".pitch-game-view--chords");
     for (const note of ["C4", "D4", "E4"]) {
